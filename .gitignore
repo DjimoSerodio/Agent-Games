@@ -1,0 +1,25 @@
+# === Planning layer (local only until ready to reveal) ===
+GO.md
+AGENTS.md
+.beads/
+.claude/
+docs/planning/
+
+# === Standard ignores ===
+node_modules/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+dist/
+build/
+.next/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Dolt database files
+.dolt/
+*.db
