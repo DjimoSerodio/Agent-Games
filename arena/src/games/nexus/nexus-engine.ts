@@ -332,6 +332,21 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     }
   }
 
+  /**
+   * Override negotiation to scan messages for promises and increment messageCount.
+   */
+  protected override async executeNegotiation(): Promise<Message[]> {
+    const messages = await super.executeNegotiation();
+
+    // Increment message count
+    this.state.messageCount += messages.length;
+
+    // Scan for promises in this round's messages
+    this.scanMessagesForPromises(messages);
+
+    return messages;
+  }
+
   protected resolveActions(actions: Map<AgentId, Action[]>): RoundResult {
     const outcomes: ActionOutcome[] = [];
     const trustUpdates: TrustUpdate[] = [];
@@ -372,6 +387,9 @@ export class NexusEngine extends GameEngine<NexusGameState> {
 
     // Resolve matched trades
     this.resolveMatchedTrades(tradeSubmissions, outcomes, trustUpdates);
+
+    // Check for stale promises (unfulfilled after 3 rounds)
+    this.checkStalePromises(trustUpdates);
 
     // Resolve crisis if active
     if (this.state.activeCrisis && !this.state.activeCrisis.resolved) {
@@ -466,19 +484,20 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         if (!this.canAfford(ps.resources, cost)) {
           return this.failOutcome(action, "Insufficient resources for settlement");
         }
+        // Find a valid location (enforces distance rule: 2+ hexes from other settlements/cities)
+        const settlementHex = this.findBuildableHex(agentId, true);
+        if (!settlementHex) {
+          return this.failOutcome(action, "No valid location for settlement (distance rule)");
+        }
         this.deductResources(ps, cost);
         ps.vp += STRUCTURE_VP.settlement;
-        // Place the settlement at a valid location
-        const settlementHex = this.findBuildableHex(agentId);
-        if (settlementHex) {
-          ps.structures.settlements.push({
-            hexes: [settlementHex],
-            structure: "settlement",
-            owner: agentId,
-          });
-          // Reveal hexes around the new settlement
-          this.revealHexesAround(agentId, settlementHex);
-        }
+        ps.structures.settlements.push({
+          hexes: [settlementHex],
+          structure: "settlement",
+          owner: agentId,
+        });
+        // Reveal hexes around the new settlement
+        this.revealHexesAround(agentId, settlementHex);
         return this.successOutcome(action, "Built a settlement", [
           { type: "vp_change", target: agentId, params: { amount: STRUCTURE_VP.settlement } },
         ]);
@@ -533,19 +552,21 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         if (!this.canAfford(ps.resources, cost)) {
           return this.failOutcome(action, "Insufficient resources for beacon");
         }
+        // Beacons don't need the settlement distance rule
+        const beaconHex = this.findBuildableHex(agentId, false);
+        if (!beaconHex) {
+          return this.failOutcome(action, "No valid location for beacon");
+        }
         this.deductResources(ps, cost);
         ps.vp += STRUCTURE_VP.beacon;
-        const beaconHex = this.findBuildableHex(agentId);
-        if (beaconHex) {
-          ps.structures.beacons.push({
-            hexes: [beaconHex],
-            structure: "beacon",
-            owner: agentId,
-          });
-          // Beacons reveal a wide area
-          for (const neighbor of hexNeighbors(beaconHex)) {
-            this.revealHexesAround(agentId, neighbor);
-          }
+        ps.structures.beacons.push({
+          hexes: [beaconHex],
+          structure: "beacon",
+          owner: agentId,
+        });
+        // Beacons reveal a wide area
+        for (const neighbor of hexNeighbors(beaconHex)) {
+          this.revealHexesAround(agentId, neighbor);
         }
         return this.successOutcome(action, "Built a beacon", [
           { type: "vp_change", target: agentId, params: { amount: STRUCTURE_VP.beacon } },
@@ -557,15 +578,17 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         if (!this.canAfford(ps.resources, cost)) {
           return this.failOutcome(action, "Insufficient resources for trade post");
         }
-        this.deductResources(ps, cost);
-        const tpHex = this.findBuildableHex(agentId);
-        if (tpHex) {
-          ps.structures.tradePosts.push({
-            hexes: [tpHex],
-            structure: "trade_post",
-            owner: agentId,
-          });
+        // Trade posts don't need the settlement distance rule
+        const tpHex = this.findBuildableHex(agentId, false);
+        if (!tpHex) {
+          return this.failOutcome(action, "No valid location for trade post");
         }
+        this.deductResources(ps, cost);
+        ps.structures.tradePosts.push({
+          hexes: [tpHex],
+          structure: "trade_post",
+          owner: agentId,
+        });
         return this.successOutcome(action, "Built a trade post (2:1 bank trades enabled)", []);
       }
 
@@ -613,19 +636,64 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         if (ps.resources.energy < 1 || ps.resources.ore < 1) {
           return this.failOutcome(action, "Insufficient resources for sabotage");
         }
+
+        // Determine target: use params.targetAgent or pick the player with the most roads
+        let targetId = action.params.targetAgent as AgentId | undefined;
+        if (!targetId || targetId === agentId || !this.state.playerStates.has(targetId)) {
+          // Auto-target: opponent with the most roads
+          let maxRoads = -1;
+          for (const [id, opponent] of this.state.playerStates) {
+            if (id === agentId) continue;
+            if (opponent.structures.roads.length > maxRoads) {
+              maxRoads = opponent.structures.roads.length;
+              targetId = id;
+            }
+          }
+        }
+
+        if (!targetId || targetId === agentId) {
+          return this.failOutcome(action, "No valid sabotage target");
+        }
+
+        const targetPs = this.state.playerStates.get(targetId)!;
+
+        // Try to destroy a road first, then downgrade a settlement
+        let description: string;
+        if (targetPs.structures.roads.length > 0) {
+          // Destroy the most recently built road
+          targetPs.structures.roads.pop();
+          targetPs.longestRoad = Math.max(0, targetPs.longestRoad - 1);
+          description = `Sabotaged ${targetId}'s road (destroyed)`;
+        } else if (targetPs.structures.settlements.length > 0) {
+          // No roads to destroy — damage a settlement (remove it, -1 VP)
+          targetPs.structures.settlements.pop();
+          targetPs.vp = Math.max(0, targetPs.vp - 1);
+          description = `Sabotaged ${targetId}'s settlement (destroyed, -1 VP)`;
+        } else {
+          // Target has nothing to destroy
+          ps.resources.energy--;
+          ps.resources.ore--;
+          return this.failOutcome(action, `${targetId} has no structures to sabotage`);
+        }
+
+        // Pay the cost
         ps.resources.energy--;
         ps.resources.ore--;
         ps.influence -= 2; // Sabotage costs influence
 
-        // Record trust penalty
-        trustUpdates.push({
-          from: agentId,
-          to: agentId, // Self-trust impact
-          delta: -0.1,
-          reason: "sabotage_action",
-        });
+        // Trust penalties: everyone loses trust in the saboteur
+        for (const otherId of this.state.players) {
+          if (otherId === agentId) continue;
+          const delta = otherId === targetId ? -0.4 : -0.15;
+          trustUpdates.push({
+            from: otherId,
+            to: agentId,
+            delta,
+            reason: otherId === targetId ? "sabotage_victim" : "sabotage_witness",
+          });
+        }
 
-        return this.successOutcome(action, "Sabotaged an opponent's road (-2 Influence)", []);
+        return this.successOutcome(action, `${description} (-2 Influence)`, []);
       }
 
       case "crisis_contribute": {
@@ -687,26 +755,56 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         const ps1 = this.state.playerStates.get(a1.agentId)!;
         const ps2 = this.state.playerStates.get(a2.agentId)!;
 
-        // Execute resource transfer (simplified)
         const give1 = a1.params.give as Partial<ResourceInventory> || {};
         const give2 = a2.params.give as Partial<ResourceInventory> || {};
 
+        // Validate both sides can afford what they're giving
+        let valid = true;
         for (const [res, amount] of Object.entries(give1)) {
           const resType = res as ResourceType;
           const amt = amount as number;
-          if (ps1.resources[resType] >= amt) {
-            ps1.resources[resType] -= amt;
-            ps2.resources[resType] += amt;
+          if (amt < 0 || ps1.resources[resType] < amt) {
+            valid = false;
+            break;
           }
+        }
+        if (valid) {
+          for (const [res, amount] of Object.entries(give2)) {
+            const resType = res as ResourceType;
+            const amt = amount as number;
+            if (amt < 0 || ps2.resources[resType] < amt) {
+              valid = false;
+              break;
+            }
+          }
+        }
+
+        // Check that at least one side is giving something
+        const total1 = Object.values(give1).reduce((s, v) => s + (v as number || 0), 0);
+        const total2 = Object.values(give2).reduce((s, v) => s + (v as number || 0), 0);
+        if (total1 === 0 && total2 === 0) valid = false;
+
+        if (!valid) {
+          outcomes.push(this.failOutcome(a1, `Trade with ${a2.agentId} failed - insufficient resources`));
+          continue;
+        }
+
+        // Execute resource transfer
+        for (const [res, amount] of Object.entries(give1)) {
+          const resType = res as ResourceType;
+          const amt = amount as number;
+          ps1.resources[resType] -= amt;
+          ps2.resources[resType] += amt;
         }
         for (const [res, amount] of Object.entries(give2)) {
           const resType = res as ResourceType;
           const amt = amount as number;
-          if (ps2.resources[resType] >= amt) {
-            ps2.resources[resType] -= amt;
-            ps1.resources[resType] += amt;
-          }
+          ps2.resources[resType] -= amt;
+          ps1.resources[resType] += amt;
         }
+
+        // Track promise fulfillment: if a trade was promised in negotiation, mark fulfilled
+        this.fulfillTradePromises(a1.agentId, a2.agentId, trustUpdates);
 
         // Trust boost for completed trade
         trustUpdates.push(
@@ -724,7 +822,10 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         const a = actions[0];
         const partnerId = a.params.partnerId as AgentId;
 
-        // Mild trust penalty -- partner may not have agreed to the trade
+        // Check if a trade was promised but not reciprocated — broken promise
+        this.breakTradePromises(a.agentId, partnerId, trustUpdates);
+
+        // Mild trust penalty
         trustUpdates.push({
           from: a.agentId,
           to: partnerId,
@@ -816,12 +917,57 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     } else {
       // Penalty for everyone (crisis failed after 3 rounds of being active)
       if (this.state.round - crisis.triggeredRound >= 3) {
+        // Apply crisis-specific penalties
+        this.applyCrisisPenalty(crisis, scoreChanges);
+
+        // Non-contributors lose trust from contributors
+        const contributors = new Set(Object.keys(crisis.contributions));
+        for (const agentId of this.state.players) {
+          if (!contributors.has(agentId)) {
+            // Free-rider penalty
+            for (const contributorId of contributors) {
+              trustUpdates.push({
+                from: contributorId,
+                to: agentId,
+                delta: -0.25,
+                reason: "crisis_free_rider",
+              });
+            }
+          }
+        }
+
+        // Check crisis promises — anyone who promised to contribute but didn't
+        for (const promise of this.promises) {
+          if (promise.type === "crisis" && promise.fulfilled === null) {
+            if (!contributors.has(promise.from)) {
+              promise.fulfilled = false;
+              promise.detectedInRound = this.state.round;
+              // General trust penalty for broken crisis promise
+              for (const otherId of this.state.players) {
+                if (otherId === promise.from) continue;
+                trustUpdates.push({
+                  from: otherId,
+                  to: promise.from,
+                  delta: -0.15,
+                  reason: "broke_crisis_promise",
+                });
+              }
+            } else {
+              promise.fulfilled = true;
+              promise.detectedInRound = this.state.round;
+            }
+          }
+        }
+
         this.emitEvent("crisis.resolved", {
           crisis: crisis.type,
           resolved: false,
           penalty: crisis.penaltyDescription,
+          contributors: Array.from(contributors),
+          freeRiders: this.state.players.filter(id => !contributors.has(id)),
         }, { agents: "all", spectators: true });
 
+        this.state.crisisHistory.push(crisis);
         this.state.activeCrisis = null;
       }
     }
@@ -1071,16 +1217,48 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   }
 
   /**
-   * Find a hex near existing structures where a new structure can be placed.
-   * Prioritizes hexes adjacent to existing structures, expanding the network.
+   * Collect ALL settlement/city hexes across ALL players (for distance rule enforcement).
    */
-  private findBuildableHex(agentId: AgentId): import("./types.js").HexCoord | null {
+  private getAllSettlementCityHexes(): import("./types.js").HexCoord[] {
+    const hexes: import("./types.js").HexCoord[] = [];
+    for (const [_, ps] of this.state.playerStates) {
+      for (const s of ps.structures.settlements) {
+        hexes.push(...s.hexes);
+      }
+      for (const c of ps.structures.cities) {
+        hexes.push(...c.hexes);
+      }
+    }
+    return hexes;
+  }
+
+  /**
+   * Check if a hex satisfies the distance rule: must be at least 2 hexes
+   * from any other settlement or city (any player).
+   */
+  private satisfiesDistanceRule(coord: import("./types.js").HexCoord): boolean {
+    const allSettlementCities = this.getAllSettlementCityHexes();
+    for (const existing of allSettlementCities) {
+      if (hexDistance(coord, existing) < 2) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Find a hex near existing structures where a new structure can be placed.
+   * Settlements/cities must be at least 2 hexes from any other settlement/city.
+   * Beacons/trade posts only need to be on an unoccupied non-wasteland hex.
+   * Must be adjacent to this agent's road network or existing structure.
+   */
+  private findBuildableHex(agentId: AgentId, enforceDistanceRule: boolean = true): import("./types.js").HexCoord | null {
     const ps = this.state.playerStates.get(agentId);
     if (!ps) return null;
 
-    // Gather all hexes where this agent has structures
-    const occupiedKeys = new Set<string>();
-    const structureHexes: import("./types.js").HexCoord[] = [];
+    // Gather all hexes where this agent has structures or roads (the network)
+    const networkKeys = new Set<string>();
+    const networkHexes: import("./types.js").HexCoord[] = [];
     const allStructures = [
       ...ps.structures.settlements,
       ...ps.structures.cities,
@@ -1091,34 +1269,60 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     for (const s of allStructures) {
       for (const h of s.hexes) {
         const key = hexKey(h);
-        if (!occupiedKeys.has(key)) {
-          occupiedKeys.add(key);
-          structureHexes.push(h);
+        if (!networkKeys.has(key)) {
+          networkKeys.add(key);
+          networkHexes.push(h);
+        }
+      }
+    }
+    // Roads extend the network
+    for (const road of ps.structures.roads) {
+      for (const h of road.hexes) {
+        const key = hexKey(h);
+        if (!networkKeys.has(key)) {
+          networkKeys.add(key);
+          networkHexes.push(h);
         }
       }
     }
 
-    // If no structures, pick a random revealed hex
-    if (structureHexes.length === 0) {
+    // If no network, pick a random revealed hex
+    if (networkHexes.length === 0) {
       const revealed = Array.from(this.state.hexGrid.values())
         .filter(t => t.revealedBy.includes(agentId) && t.terrain !== "wasteland");
       if (revealed.length > 0) {
-        return revealed[Math.floor(Math.random() * revealed.length)].coord;
+        const candidates = enforceDistanceRule
+          ? revealed.filter(t => this.satisfiesDistanceRule(t.coord))
+          : revealed;
+        if (candidates.length > 0) {
+          return candidates[Math.floor(Math.random() * candidates.length)].coord;
+        }
       }
       return null;
     }
 
-    // Find adjacent hexes that are valid and not already occupied
-    const candidates: import("./types.js").HexCoord[] = [];
-    for (const sh of structureHexes) {
-      for (const neighbor of hexNeighbors(sh)) {
-        const key = hexKey(neighbor);
-        if (!occupiedKeys.has(key) && this.state.hexGrid.has(key)) {
-          const tile = this.state.hexGrid.get(key)!;
-          if (tile.terrain !== "wasteland") {
-            candidates.push(neighbor);
-          }
+    // Collect all hexes occupied by any structure (any player)
+    const allOccupied = new Set<string>();
+    for (const [_, otherPs] of this.state.playerStates) {
+      for (const s of [...otherPs.structures.settlements, ...otherPs.structures.cities,
+                        ...otherPs.structures.beacons, ...otherPs.structures.tradePosts]) {
+        for (const h of s.hexes) {
+          allOccupied.add(hexKey(h));
         }
+      }
+    }
+
+    // Find adjacent hexes that are valid and unoccupied
+    const candidates: import("./types.js").HexCoord[] = [];
+    for (const nh of networkHexes) {
+      for (const neighbor of hexNeighbors(nh)) {
+        const key = hexKey(neighbor);
+        if (allOccupied.has(key)) continue;
+        if (!this.state.hexGrid.has(key)) continue;
+        const tile = this.state.hexGrid.get(key)!;
+        if (tile.terrain === "wasteland") continue;
+        if (enforceDistanceRule && !this.satisfiesDistanceRule(neighbor)) continue;
+        candidates.push(neighbor);
       }
     }
 
@@ -1126,8 +1330,8 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       return candidates[Math.floor(Math.random() * candidates.length)];
     }
 
-    // Fallback: place on an existing structure hex
-    return structureHexes[0];
+    // No valid position found (board is too crowded)
+    return null;
   }
 
   /**
@@ -1164,6 +1368,261 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       if (nHex && !nHex.revealedBy.includes(agentId)) {
         nHex.revealed = true;
         nHex.revealedBy.push(agentId);
+      }
+    }
+  }
+
+  // ============================================================
+  // Crisis penalties
+  // ============================================================
+
+  /**
+   * Apply the mechanical penalty for a failed crisis.
+   */
+  private applyCrisisPenalty(crisis: CrisisEvent, scoreChanges: Record<AgentId, number>): void {
+    switch (crisis.type) {
+      case "blight": {
+        // "All Plains hexes skip next production cycle" — mark them as temporarily wasteland
+        // Simplified: all players lose 1 grain
+        for (const [agentId, ps] of this.state.playerStates) {
+          const lost = Math.min(ps.resources.grain, 2);
+          ps.resources.grain -= lost;
+        }
+        break;
+      }
+      case "storm": {
+        // "Random roads destroyed across the map"
+        for (const [agentId, ps] of this.state.playerStates) {
+          if (ps.structures.roads.length > 0) {
+            ps.structures.roads.pop();
+            ps.longestRoad = Math.max(0, ps.longestRoad - 1);
+          }
+        }
+        break;
+      }
+      case "famine": {
+        // "Resource cap reduced to 5 for 3 rounds"
+        // Simplified: all players lose excess resources down to cap of 5
+        for (const [agentId, ps] of this.state.playerStates) {
+          const total = ps.resources.grain + ps.resources.timber + ps.resources.ore + ps.resources.energy;
+          if (total > 5) {
+            // Remove resources proportionally, starting from most abundant
+            let toRemove = total - 5;
+            const types: ResourceType[] = ["grain", "timber", "ore", "energy"];
+            types.sort((a, b) => ps.resources[b] - ps.resources[a]);
+            for (const resType of types) {
+              const remove = Math.min(ps.resources[resType], toRemove);
+              ps.resources[resType] -= remove;
+              toRemove -= remove;
+              if (toRemove <= 0) break;
+            }
+          }
+        }
+        break;
+      }
+      case "nexus_surge": {
+        // "Nexus hex becomes Wasteland for 5 rounds"
+        // Mark the center hex as wasteland temporarily
+        const nexusHex = this.state.hexGrid.get(hexKey({ q: 0, r: 0 }));
+        if (nexusHex) {
+          nexusHex.terrain = "wasteland";
+          nexusHex.productionNumber = 0;
+          // It will need to be restored later — for now this is permanent per-crisis
+        }
+        break;
+      }
+      case "the_rift": {
+        // "Random hex becomes permanent Wasteland"
+        const nonWasteland = Array.from(this.state.hexGrid.values()).filter(
+          t => t.terrain !== "wasteland" && t.terrain !== "nexus"
+        );
+        if (nonWasteland.length > 0) {
+          const target = nonWasteland[Math.floor(Math.random() * nonWasteland.length)];
+          target.terrain = "wasteland";
+          target.productionNumber = 0;
+        }
+        // VP penalty for everyone
+        for (const agentId of this.state.players) {
+          scoreChanges[agentId] = (scoreChanges[agentId] || 0) - 1;
+        }
+        break;
+      }
+    }
+  }
+
+  // ============================================================
+  // Promise tracking
+  // ============================================================
+
+  /**
+   * Record a trade promise between two agents.
+   * Called when an agent sends a message containing trade-related language
+   * to another specific agent during negotiation.
+   */
+  recordTradePromise(from: AgentId, to: AgentId, description: string): void {
+    this.promises.push({
+      id: `promise-${this.promises.length + 1}`,
+      from,
+      to,
+      type: "trade",
+      description,
+      round: this.state.round,
+      fulfilled: null,
+      detectedInRound: null,
+    });
+  }
+
+  /**
+   * Record an alliance promise.
+   */
+  recordAlliancePromise(from: AgentId, to: AgentId, description: string): void {
+    this.promises.push({
+      id: `promise-${this.promises.length + 1}`,
+      from,
+      to,
+      type: "alliance",
+      description,
+      round: this.state.round,
+      fulfilled: null,
+      detectedInRound: null,
+    });
+  }
+
+  /**
+   * Record a crisis contribution promise.
+   */
+  recordCrisisPromise(from: AgentId, description: string): void {
+    this.promises.push({
+      id: `promise-${this.promises.length + 1}`,
+      from,
+      to: "all", // Crisis promises are to everyone
+      type: "crisis",
+      description,
+      round: this.state.round,
+      fulfilled: null,
+      detectedInRound: null,
+    });
+  }
+
+  /**
+   * Mark trade promises as fulfilled between two agents.
+   */
+  private fulfillTradePromises(agent1: AgentId, agent2: AgentId, trustUpdates: TrustUpdate[]): void {
+    for (const promise of this.promises) {
+      if (promise.fulfilled !== null) continue; // Already resolved
+      if (promise.type !== "trade") continue;
+      // Check if this trade fulfills a promise between these two agents
+      if (
+        (promise.from === agent1 && promise.to === agent2) ||
+        (promise.from === agent2 && promise.to === agent1)
+      ) {
+        promise.fulfilled = true;
+        promise.detectedInRound = this.state.round;
+        // Bonus trust for keeping promises (on top of trade trust)
+        trustUpdates.push({
+          from: promise.to,
+          to: promise.from,
+          delta: 0.1,
+          reason: "kept_promise",
+        });
+      }
+    }
+  }
+
+  /**
+   * Mark trade promises as broken when a promised trade doesn't happen.
+   */
+  private breakTradePromises(offerer: AgentId, nonReciprocator: AgentId, trustUpdates: TrustUpdate[]): void {
+    for (const promise of this.promises) {
+      if (promise.fulfilled !== null) continue;
+      if (promise.type !== "trade") continue;
+      // If the non-reciprocator promised to trade with the offerer
+      if (promise.from === nonReciprocator && promise.to === offerer) {
+        promise.fulfilled = false;
+        promise.detectedInRound = this.state.round;
+        trustUpdates.push({
+          from: offerer,
+          to: nonReciprocator,
+          delta: -0.3,
+          reason: "broke_promise",
+        });
+      }
+    }
+  }
+
+  /**
+   * Check for stale promises (unfulfilled after 3 rounds) and penalize.
+   * Called at end of each round during resolution.
+   */
+  private checkStalePromises(trustUpdates: TrustUpdate[]): void {
+    for (const promise of this.promises) {
+      if (promise.fulfilled !== null) continue;
+      if (this.state.round - promise.round >= 3) {
+        // Promise expired unfulfilled
+        promise.fulfilled = false;
+        promise.detectedInRound = this.state.round;
+        if (promise.to !== "all") {
+          trustUpdates.push({
+            from: promise.to,
+            to: promise.from,
+            delta: -0.2,
+            reason: "stale_promise",
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * Scan negotiation messages for trade/alliance/crisis keywords and
+   * automatically create promise records. This is a heuristic — LLM agents
+   * will use natural language, so we look for intent signals.
+   */
+  scanMessagesForPromises(messages: Message[]): void {
+    const tradeKeywords = ["trade", "deal", "offer", "give you", "send you", "exchange", "swap"];
+    const allianceKeywords = ["alliance", "ally", "team up", "partner", "pact", "work together"];
+    const crisisKeywords = ["contribute", "help with crisis", "pitch in", "donate"];
+
+    for (const msg of messages) {
+      if (msg.type !== "private" || msg.recipient === "broadcast") continue;
+      const lower = msg.content.toLowerCase();
+
+      // Check for trade promises
+      if (tradeKeywords.some(kw => lower.includes(kw))) {
+        // Don't duplicate if we already have a pending promise between these two this round
+        const existing = this.promises.find(p =>
+          p.from === msg.sender && p.to === msg.recipient &&
+          p.type === "trade" && p.fulfilled === null &&
+          p.round === this.state.round
+        );
+        if (!existing) {
+          this.recordTradePromise(msg.sender, msg.recipient as AgentId, msg.content.slice(0, 100));
+        }
+      }
+
+      // Check for alliance promises
+      if (allianceKeywords.some(kw => lower.includes(kw))) {
+        const existing = this.promises.find(p =>
+          p.from === msg.sender && p.to === msg.recipient &&
+          p.type === "alliance" && p.fulfilled === null
+        );
+        if (!existing) {
+          this.recordAlliancePromise(msg.sender, msg.recipient as AgentId, msg.content.slice(0, 100));
+        }
+      }
+    }
+
+    // Check for crisis promises in public messages
+    for (const msg of messages) {
+      if (msg.type !== "public") continue;
+      const lower = msg.content.toLowerCase();
+      if (crisisKeywords.some(kw => lower.includes(kw)) && this.state.activeCrisis) {
+        const existing = this.promises.find(p =>
+          p.from === msg.sender && p.type === "crisis" && p.fulfilled === null
+        );
+        if (!existing) {
+          this.recordCrisisPromise(msg.sender, msg.content.slice(0, 100));
+        }
       }
     }
   }

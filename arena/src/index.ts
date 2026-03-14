@@ -4,22 +4,24 @@
  * Starts the arena platform with:
  * - Event bus for all game events
  * - Trust graph computation
- * - Observatory server for spectators (serves frontend UI)
+ * - Observatory server for spectators (port 3000)
+ * - Admin dashboard for game management (port 3001)
  *
  * Usage:
  *   npx tsx src/index.ts
- *   Then open http://localhost:3000 in your browser
- *   Click "RUN SIMULATION" to start a game
+ *   Then open http://localhost:3000 (Observatory) or http://localhost:3001 (Admin)
+ *   Click "RUN SIMULATION" in the Observatory to start a game
  */
 
 import { EventBus } from "./core/event-bus.js";
 import { TrustGraph } from "./trust/trust-graph.js";
 import { ObservatoryServer } from "./observatory/server.js";
+import { AdminServer } from "./admin/server.js";
 
 async function main() {
   console.log();
   console.log("  ╔══════════════════════════════════════════════════╗");
-  console.log("  ║       NEXUS OBSERVATORY                          ║");
+  console.log("  ║       NEXUS OBSERVATORY + ADMIN                   ║");
   console.log("  ║       Coordination Olympiad Arena                 ║");
   console.log("  ╚══════════════════════════════════════════════════╝");
   console.log();
@@ -35,12 +37,21 @@ async function main() {
     preTrusted: [],
   });
 
-  const port = parseInt(process.env.PORT || "3000");
+  // Observatory (spectator UI) on port 3000
+  const observatoryPort = parseInt(process.env.PORT || "3000");
   const observatory = new ObservatoryServer(eventBus, trustGraph);
-  observatory.start(port);
+  observatory.start(observatoryPort);
 
-  console.log(`  Open http://localhost:${port} in your browser`);
-  console.log(`  Click "RUN SIMULATION" to start a game`);
+  // Admin dashboard on port 3001
+  const adminPort = parseInt(process.env.ADMIN_PORT || "3001");
+  const admin = new AdminServer(eventBus, trustGraph);
+  admin.start(adminPort);
+
+  console.log();
+  console.log(`  Observatory: http://localhost:${observatoryPort}`);
+  console.log(`  Admin:       http://localhost:${adminPort}`);
+  console.log();
+  console.log(`  Click "RUN SIMULATION" in the Observatory to start a game`);
   console.log();
 }
 

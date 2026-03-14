@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus Admin Dashboard</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-dim: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --orange: #d29922;
+      --purple: #bc8cff;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* Header */
+    .header {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .header .status {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .header .status span {
+      color: var(--text-dim);
+    }
+    .header .status .value {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    /* Controls */
+    .controls {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 20px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg3);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .btn.danger { border-color: var(--red); color: var(--red); }
+    .btn.danger:hover { background: var(--red); color: white; }
+    .btn.success { border-color: var(--green); color: var(--green); }
+    .btn.success:hover { background: var(--green); color: var(--bg); }
+
+    /* Layout */
+    .main {
+      display: grid;
+      grid-template-columns: 300px 1fr 350px;
+      grid-template-rows: 1fr;
+      height: calc(100vh - 90px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+    }
+    .sidebar-section {
+      border-bottom: 1px solid var(--border);
+      padding: 12px;
+    }
+    .sidebar-section h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
+    /* Agent list */
+    .agent-item {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .agent-item:hover { border-color: var(--accent); }
+    .agent-item.selected { border-color: var(--accent); background: rgba(88, 166, 255, 0.1); }
+    .agent-item .name { font-weight: 600; }
+    .agent-item .meta { color: var(--text-dim); font-size: 11px; }
+
+    /* Center panel */
+    .center {
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    /* Event log */
+    .event-log {
+      font-size: 12px;
+    }
+    .event-entry {
+      padding: 6px 10px;
+      border-left: 3px solid var(--border);
+      margin-bottom: 4px;
+      background: var(--bg2);
+      border-radius: 0 4px 4px 0;
+    }
+    .event-entry.phase { border-left-color: var(--accent); }
+    .event-entry.action { border-left-color: var(--green); }
+    .event-entry.chat { border-left-color: var(--purple); }
+    .event-entry.trust { border-left-color: var(--orange); }
+    .event-entry.crisis { border-left-color: var(--red); }
+    .event-entry .time {
+      color: var(--text-dim);
+      font-size: 10px;
+    }
+    .event-entry .type {
+      font-weight: 600;
+      margin-right: 8px;
+    }
+
+    /* Right panel - State inspector */
+    .inspector {
+      background: var(--bg2);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .inspector h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+    .json-viewer {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 11px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      padding: 8px 16px;
+      cursor: pointer;
+      color: var(--text-dim);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      font-size: 12px;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* Resource display */
+    .resource-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin: 8px 0;
+    }
+    .resource-cell {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px;
+      text-align: center;
+    }
+    .resource-cell .label { font-size: 10px; color: var(--text-dim); }
+    .resource-cell .value { font-size: 16px; font-weight: 700; }
+    .resource-cell.grain .value { color: #f0c040; }
+    .resource-cell.timber .value { color: #40a040; }
+    .resource-cell.ore .value { color: #a0a0b0; }
+    .resource-cell.energy .value { color: #60c0f0; }
+
+    /* Badge */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .badge.paused { background: var(--orange); color: var(--bg); }
+    .badge.running { background: var(--green); color: var(--bg); }
+    .badge.idle { background: var(--border); color: var(--text-dim); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+    /* Filter bar */
+    .filter-bar {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 3px 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: transparent;
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .filter-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-dim);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>NEXUS ADMIN</h1>
+    <div class="status">
+      <span>Events: <span class="value" id="eventCount">0</span></span>
+      <span>Agents: <span class="value" id="agentCount">0</span></span>
+      <span>Round: <span class="value" id="currentRound">-</span></span>
+      <span id="statusBadge"><span class="badge idle">IDLE</span></span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn success" id="btnResume" onclick="sendCommand('resume')">Resume</button>
+    <button class="btn danger" id="btnPause" onclick="sendCommand('pause')">Pause</button>
+    <button class="btn" onclick="clearEvents()">Clear Log</button>
+    <button class="btn" onclick="exportState()">Export State</button>
+    <span style="flex:1"></span>
+    <span style="color: var(--text-dim); font-size: 11px;">
+      WS: <span id="wsStatus" style="color: var(--green);">connecting...</span>
+    </span>
+  </div>
+
+  <div class="main">
+    <!-- Left sidebar: Agents -->
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <h3>Agents</h3>
+        <div id="agentList">
+          <div class="empty-state">Waiting for game...</div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <h3>Game Info</h3>
+        <div id="gameInfo" class="empty-state">No game running</div>
+      </div>
+    </div>
+
+    <!-- Center: Event log -->
+    <div class="center">
+      <div class="tabs">
+        <div class="tab active" data-tab="events" onclick="switchTab('events')">Event Log</div>
+        <div class="tab" data-tab="agent" onclick="switchTab('agent')">Agent Detail</div>
+        <div class="tab" data-tab="replay" onclick="switchTab('replay')">Replay</div>
+      </div>
+
+      <!-- Events tab -->
+      <div id="eventsTab">
+        <div class="filter-bar">
+          <button class="filter-btn active" onclick="toggleFilter(this, 'all')">All</button>
+          <button class="filter-btn" onclick="toggleFilter(this, 'game')">Game</button>
+          <button class="filter-btn" onclick="toggleFilter(this, 'chat')">Chat</button>
+          <button class="filter-btn" onclick="toggleFilter(this, 'trust')">Trust</button>
+          <button class="filter-btn" onclick="toggleFilter(this, 'crisis')">Crisis</button>
+          <button class="filter-btn" onclick="toggleFilter(this, 'action')">Actions</button>
+        </div>
+        <div id="eventLog" class="event-log">
+          <div class="empty-state">No events yet. Start a simulation from the Observatory.</div>
+        </div>
+      </div>
+
+      <!-- Agent detail tab -->
+      <div id="agentTab" style="display:none;">
+        <div id="agentDetail" class="empty-state">Select an agent from the sidebar</div>
+      </div>
+
+      <!-- Replay tab -->
+      <div id="replayTab" style="display:none;">
+        <div id="replayContent" class="empty-state">No replay data</div>
+      </div>
+    </div>
+
+    <!-- Right sidebar: State inspector -->
+    <div class="inspector">
+      <h3>State Inspector</h3>
+      <div id="stateInspector" class="json-viewer">
+        Waiting for game state...
+      </div>
+
+      <h3 style="margin-top: 16px;">Trust Matrix</h3>
+      <div id="trustInspector" class="json-viewer">
+        No trust data
+      </div>
+
+      <h3 style="margin-top: 16px;">Selected Event</h3>
+      <div id="eventInspector" class="json-viewer">
+        Click an event to inspect
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    // State
+    // ============================================================
+    const events = [];
+    const agents = {};
+    let currentFilter = 'all';
+    let selectedAgent = null;
+    let ws = null;
+    let paused = false;
+
+    // ============================================================
+    // WebSocket
+    // ============================================================
+    function connect() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}`);
+
+      ws.onopen = () => {
+        document.getElementById('wsStatus').textContent = 'connected';
+        document.getElementById('wsStatus').style.color = 'var(--green)';
+      };
+
+      ws.onclose = () => {
+        document.getElementById('wsStatus').textContent = 'disconnected';
+        document.getElementById('wsStatus').style.color = 'var(--red)';
+        setTimeout(connect, 3000);
+      };
+
+      ws.onerror = () => {
+        document.getElementById('wsStatus').textContent = 'error';
+        document.getElementById('wsStatus').style.color = 'var(--red)';
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          handleMessage(msg);
+        } catch {}
+      };
+    }
+
+    function handleMessage(msg) {
+      switch (msg.type) {
+        case 'welcome':
+          document.getElementById('eventCount').textContent = msg.data.eventCount;
+          document.getElementById('agentCount').textContent = msg.data.agentCount;
+          paused = msg.data.paused;
+          updatePauseState();
+          if (msg.data.currentGameState) {
+            updateStateInspector(msg.data.currentGameState);
+          }
+          if (msg.data.trustMatrix) {
+            updateTrustInspector(msg.data.trustMatrix);
+          }
+          break;
+
+        case 'game_event':
+          addEvent(msg.event);
+          break;
+
+        case 'agent_log':
+          addAgentLog(msg.data);
+          break;
+
+        case 'status':
+          paused = msg.data.paused;
+          updatePauseState();
+          break;
+      }
+    }
+
+    // ============================================================
+    // Event handling
+    // ============================================================
+    function addEvent(event) {
+      events.push(event);
+      document.getElementById('eventCount').textContent = events.length;
+
+      // Update round
+      const data = event.data || {};
+      if (data.round !== undefined) {
+        document.getElementById('currentRound').textContent = data.round;
+      }
+
+      // Track agents
+      if (event.type === 'game.agent_info' && data.agents) {
+        for (const agent of data.agents) {
+          agents[agent.id] = agent;
+        }
+        updateAgentList();
+        document.getElementById('agentCount').textContent = Object.keys(agents).length;
+      }
+
+      // Update status badge
+      if (event.type === 'game.started') {
+        document.getElementById('statusBadge').innerHTML = '<span class="badge running">RUNNING</span>';
+      } else if (event.type === 'game.ended') {
+        document.getElementById('statusBadge').innerHTML = '<span class="badge idle">ENDED</span>';
+      }
+
+      // Update state inspector for state_update events
+      if (event.type === 'game.state_update') {
+        updateStateInspector(data);
+      }
+
+      // Update trust inspector
+      if (event.type === 'trust.updated') {
+        updateTrustInspector(data);
+      }
+
+      // Render in log
+      renderEvent(event);
+    }
+
+    function renderEvent(event) {
+      const log = document.getElementById('eventLog');
+      if (log.querySelector('.empty-state')) {
+        log.innerHTML = '';
+      }
+
+      // Filter check
+      if (!matchesFilter(event.type, currentFilter)) return;
+
+      const el = document.createElement('div');
+      el.className = 'event-entry ' + getEventCategory(event.type);
+      el.onclick = () => inspectEvent(event);
+
+      const time = new Date(event.timestamp).toLocaleTimeString();
+      const data = event.data || {};
+      let summary = summarizeEvent(event);
+
+      el.innerHTML = `
+        <span class="time">${time}</span>
+        <span class="type">${event.type}</span>
+        <span>${summary}</span>
+      `;
+
+      log.appendChild(el);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function getEventCategory(type) {
+      if (type.startsWith('game.phase') || type.startsWith('game.round') || type === 'game.started' || type === 'game.ended') return 'phase';
+      if (type.startsWith('game.action') || type === 'game.state_update') return 'action';
+      if (type.startsWith('chat.')) return 'chat';
+      if (type.startsWith('trust.')) return 'trust';
+      if (type.startsWith('crisis.')) return 'crisis';
+      return '';
+    }
+
+    function matchesFilter(type, filter) {
+      if (filter === 'all') return true;
+      if (filter === 'game') return type.startsWith('game.');
+      if (filter === 'chat') return type.startsWith('chat.');
+      if (filter === 'trust') return type.startsWith('trust.');
+      if (filter === 'crisis') return type.startsWith('crisis.');
+      if (filter === 'action') return type === 'game.state_update' || type === 'game.action';
+      return true;
+    }
+
+    function summarizeEvent(event) {
+      const d = event.data || {};
+      switch (event.type) {
+        case 'game.started': return `Players: ${(d.players || []).join(', ')}`;
+        case 'game.ended': return `Winner: ${d.winner || 'none'} | Rounds: ${d.rounds}`;
+        case 'game.round.start': return `Round ${d.round}`;
+        case 'game.phase.change': return `→ ${d.phase}`;
+        case 'game.state_update': return `Round ${d.round} | Moves: ${d.moveCount}`;
+        case 'chat.public': return `[${d.message?.sender}] ${(d.message?.content || '').slice(0, 80)}`;
+        case 'chat.private': return `[${d.message?.sender} → ${d.message?.recipient}] ${(d.message?.content || '').slice(0, 60)}`;
+        case 'chat.diary': return `[${d.message?.sender} diary] ${(d.message?.content || '').slice(0, 60)}`;
+        case 'trust.updated': return `${(d.updates || []).length} updates`;
+        case 'crisis.triggered': return `${d.crisis?.name || d.crisis?.type}`;
+        case 'crisis.resolved': return `${d.crisis} - ${d.resolved ? 'RESOLVED' : 'FAILED'}`;
+        case 'game.agent_info': return `${(d.agents || []).length} agents registered`;
+        case 'game.map_data': return `${(d.hexes || []).length} hexes`;
+        default: return JSON.stringify(d).slice(0, 100);
+      }
+    }
+
+    function inspectEvent(event) {
+      const el = document.getElementById('eventInspector');
+      el.textContent = JSON.stringify(event, null, 2);
+    }
+
+    // ============================================================
+    // UI helpers
+    // ============================================================
+    function updateAgentList() {
+      const list = document.getElementById('agentList');
+      list.innerHTML = '';
+      for (const [id, agent] of Object.entries(agents)) {
+        const el = document.createElement('div');
+        el.className = 'agent-item' + (selectedAgent === id ? ' selected' : '');
+        el.onclick = () => selectAgent(id);
+        el.innerHTML = `
+          <div class="name">${agent.name || id.slice(0, 8)}</div>
+          <div class="meta">${agent.strategy || 'LLM'} | ${id.slice(0, 8)}...</div>
+        `;
+        list.appendChild(el);
+      }
+    }
+
+    function selectAgent(id) {
+      selectedAgent = id;
+      updateAgentList();
+      switchTab('agent');
+      renderAgentDetail(id);
+    }
+
+    function renderAgentDetail(id) {
+      const agent = agents[id];
+      const detail = document.getElementById('agentDetail');
+
+      // Find this agent's events
+      const agentEvents = events.filter(e => {
+        const d = e.data || {};
+        if (d.agentId === id) return true;
+        if (d.message?.sender === id) return true;
+        if (e.type === 'game.state_update' && d.agentStates && d.agentStates[id]) return true;
+        if (d.actionSummary) return d.actionSummary.some(a => a.agentId === id);
+        return false;
+      });
+
+      // Get latest state
+      const latestState = events.filter(e => e.type === 'game.state_update')
+        .map(e => e.data?.agentStates?.[id])
+        .filter(Boolean)
+        .pop();
+
+      let html = `<h2 style="margin-bottom: 12px;">${agent?.name || id.slice(0, 8)}</h2>`;
+
+      if (latestState) {
+        html += `
+          <div class="resource-grid">
+            <div class="resource-cell grain"><div class="label">Grain</div><div class="value">${latestState.resources?.grain || 0}</div></div>
+            <div class="resource-cell timber"><div class="label">Timber</div><div class="value">${latestState.resources?.timber || 0}</div></div>
+            <div class="resource-cell ore"><div class="label">Ore</div><div class="value">${latestState.resources?.ore || 0}</div></div>
+            <div class="resource-cell energy"><div class="label">Energy</div><div class="value">${latestState.resources?.energy || 0}</div></div>
+          </div>
+          <p>VP: <strong>${latestState.vp}</strong> | Influence: <strong>${latestState.influence}</strong> | Roads: <strong>${latestState.longestRoad}</strong></p>
+          <p>Settlements: ${latestState.structures?.settlements || 0} | Cities: ${latestState.structures?.cities || 0} | Beacons: ${latestState.structures?.beacons || 0}</p>
+        `;
+      }
+
+      html += `<h3 style="margin-top: 16px; color: var(--text-dim); font-size: 11px; text-transform: uppercase;">Activity (${agentEvents.length} events)</h3>`;
+      html += '<div class="event-log" style="margin-top: 8px;">';
+      for (const event of agentEvents.slice(-50)) {
+        const time = new Date(event.timestamp).toLocaleTimeString();
+        html += `<div class="event-entry ${getEventCategory(event.type)}">
+          <span class="time">${time}</span>
+          <span class="type">${event.type}</span>
+          <span>${summarizeEvent(event)}</span>
+        </div>`;
+      }
+      html += '</div>';
+
+      detail.innerHTML = html;
+    }
+
+    function updateStateInspector(data) {
+      const el = document.getElementById('stateInspector');
+      el.textContent = JSON.stringify(data, null, 2);
+    }
+
+    function updateTrustInspector(data) {
+      const el = document.getElementById('trustInspector');
+      el.textContent = JSON.stringify(data, null, 2);
+    }
+
+    function updatePauseState() {
+      if (paused) {
+        document.getElementById('statusBadge').innerHTML = '<span class="badge paused">PAUSED</span>';
+      }
+    }
+
+    // ============================================================
+    // Controls
+    // ============================================================
+    function sendCommand(type) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type }));
+      }
+    }
+
+    function clearEvents() {
+      events.length = 0;
+      document.getElementById('eventLog').innerHTML = '<div class="empty-state">Log cleared</div>';
+      document.getElementById('eventCount').textContent = '0';
+    }
+
+    function exportState() {
+      const blob = new Blob([JSON.stringify({ events, agents }, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `nexus-admin-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+      document.getElementById('eventsTab').style.display = tab === 'events' ? 'block' : 'none';
+      document.getElementById('agentTab').style.display = tab === 'agent' ? 'block' : 'none';
+      document.getElementById('replayTab').style.display = tab === 'replay' ? 'block' : 'none';
+    }
+
+    function toggleFilter(el, filter) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+      // Re-render events
+      const log = document.getElementById('eventLog');
+      log.innerHTML = '';
+      for (const event of events) {
+        renderEvent(event);
+      }
+      if (log.innerHTML === '') {
+        log.innerHTML = '<div class="empty-state">No matching events</div>';
+      }
+    }
+
+    // ============================================================
+    // Init
+    // ============================================================
+    connect();
+  </script>
+</body>
+</html>

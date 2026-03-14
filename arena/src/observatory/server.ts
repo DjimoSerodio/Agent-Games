@@ -294,8 +294,9 @@ export class ObservatoryServer {
     ];
 
     const engine = new NexusEngine(config, this.eventBus, this.trustGraph);
-    // Add pacing so the frontend can render events in real-time
-    engine.paceDelayMs = 150; // 150ms between phases
+    // No artificial delays — game runs at agent response speed.
+    // Events stream to Observatory via WebSocket in real-time.
+    engine.paceDelayMs = 0;
 
     const agentInfo: Array<{ id: string; name: string; strategy: string }> = [];
     for (const { name, strategy } of strategies) {

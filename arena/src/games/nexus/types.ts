@@ -217,7 +217,8 @@ export interface NexusAction extends Action {
     bankGiveAmount?: number;
     // For explore: direction
     targetHex?: HexCoord;
-    // For sabotage: target
+    // For sabotage: target agent or edge
+    targetAgent?: AgentId;
     targetEdge?: { hexes: [HexCoord, HexCoord] };
     // For crisis_contribute: resources
     contribution?: Partial<ResourceInventory>;
