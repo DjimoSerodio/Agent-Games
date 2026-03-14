@@ -70,6 +70,7 @@ export class TrustGraph {
     to: AgentId,
     cooperated: boolean,
     gameId: GameId,
+    magnitude: number = 1,
   ): void {
     this.addAgent(from);
     this.addAgent(to);
@@ -94,10 +95,16 @@ export class TrustGraph {
     edge.interactions++;
     if (cooperated) {
       edge.cooperations++;
-      edge.weight = Math.min(1.0, edge.weight + this.config.cooperationReward);
+      edge.weight = Math.min(
+        1.0,
+        edge.weight + this.config.cooperationReward * Math.max(0.1, magnitude),
+      );
     } else {
       edge.defections++;
-      edge.weight = Math.max(-1.0, edge.weight - this.config.defectionPenalty);
+      edge.weight = Math.max(
+        -1.0,
+        edge.weight - this.config.defectionPenalty * Math.max(0.1, magnitude),
+      );
     }
 
     edge.lastInteraction = this.currentTime;
@@ -112,9 +119,9 @@ export class TrustGraph {
   applyUpdates(updates: TrustUpdate[], gameId: GameId): void {
     for (const update of updates) {
       if (update.delta > 0) {
-        this.recordInteraction(update.from, update.to, true, gameId);
+        this.recordInteraction(update.from, update.to, true, gameId, Math.abs(update.delta));
       } else if (update.delta < 0) {
-        this.recordInteraction(update.from, update.to, false, gameId);
+        this.recordInteraction(update.from, update.to, false, gameId, Math.abs(update.delta));
       }
     }
     this.recompute();

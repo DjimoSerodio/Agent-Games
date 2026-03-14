@@ -499,7 +499,7 @@
       if (type.startsWith('game.phase') || type.startsWith('game.round') || type === 'game.started' || type === 'game.ended') return 'phase';
       if (type.startsWith('game.action') || type === 'game.state_update') return 'action';
       if (type.startsWith('chat.')) return 'chat';
-      if (type.startsWith('trust.')) return 'trust';
+      if (type.startsWith('trust.') || type.startsWith('commitment.') || type === 'behavior.tagged' || type === 'prize.slashed') return 'trust';
       if (type.startsWith('crisis.')) return 'crisis';
       return '';
     }
@@ -508,7 +508,7 @@
       if (filter === 'all') return true;
       if (filter === 'game') return type.startsWith('game.');
       if (filter === 'chat') return type.startsWith('chat.');
-      if (filter === 'trust') return type.startsWith('trust.');
+      if (filter === 'trust') return type.startsWith('trust.') || type.startsWith('commitment.') || type === 'behavior.tagged' || type === 'prize.slashed';
       if (filter === 'crisis') return type.startsWith('crisis.');
       if (filter === 'action') return type === 'game.state_update' || type === 'game.action';
       return true;
@@ -526,6 +526,11 @@
         case 'chat.private': return `[${d.message?.sender} → ${d.message?.recipient}] ${(d.message?.content || '').slice(0, 60)}`;
         case 'chat.diary': return `[${d.message?.sender} diary] ${(d.message?.content || '').slice(0, 60)}`;
         case 'trust.updated': return `${(d.updates || []).length} updates`;
+        case 'commitment.detected': return `${d.commitment?.id || '?'} ${d.commitment?.summary || ''}`;
+        case 'commitment.attested': return `${d.attestation?.actor || d.actor || '?'} ${d.attestation?.verdict || d.verdict || ''} ${d.commitmentId || ''}`;
+        case 'commitment.resolved': return `${d.commitmentId} → ${d.status}`;
+        case 'behavior.tagged': return `${d.actor} ${d.kind} (${d.severity})`;
+        case 'prize.slashed': return `slash ${d.slashedPrizePoolWei || '0'} wei`;
         case 'crisis.triggered': return `${d.crisis?.name || d.crisis?.type}`;
         case 'crisis.resolved': return `${d.crisis} - ${d.resolved ? 'RESOLVED' : 'FAILED'}`;
         case 'game.agent_info': return `${(d.agents || []).length} agents registered`;

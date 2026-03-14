@@ -238,6 +238,34 @@ export class ObservatoryServer {
       res.json({ messages });
     });
 
+    // Commitment ledger activity
+    this.app.get("/api/games/:gameId/commitments", (req, res) => {
+      const events = this.eventBus.getHistory({
+        gameId: req.params.gameId,
+        spectator: true,
+        types: ["commitment.detected", "commitment.attested", "commitment.resolved"],
+      });
+      res.json({ events });
+    });
+
+    // Commons-health and prize-slash activity
+    this.app.get("/api/games/:gameId/commons-health", (req, res) => {
+      const slashEvents = this.eventBus.getHistory({
+        gameId: req.params.gameId,
+        spectator: true,
+        types: ["prize.slashed"],
+      });
+      const stateEvents = this.eventBus.getHistory({
+        gameId: req.params.gameId,
+        spectator: true,
+        types: ["game.state_update"],
+      }).map((event) => ({
+        round: (event.data as any).round,
+        commonsHealth: (event.data as any).commonsHealth,
+      }));
+      res.json({ slashEvents, stateEvents });
+    });
+
     // Trust graph
     this.app.get("/api/trust/matrix", (_, res) => {
       res.json(this.trustGraph.getTrustMatrix());

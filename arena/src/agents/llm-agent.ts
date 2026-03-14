@@ -256,8 +256,13 @@ Types: Blight, Storm, Famine, Nexus Surge, The Rift.
 Player trades: both sides must agree (negotiate first, then submit matching trade actions).
 Bank trades: 4:1 ratio by default, improved by trade posts.
 
-## Trust & Influence
-Your actions affect trust scores (visible to all). Keeping promises builds trust.
+## Trust, Commitments, and Influence
+Trust is public and informational only. It does NOT directly add VP.
+The game extracts commitment IDs from dialogue. You can later attest them in chat using messages like:
+- "ATTEST commitment-3 exists"
+- "ATTEST commitment-3 fulfilled"
+- "ATTEST commitment-3 breached"
+Keeping commitments, avoiding sabotage, and contributing during crises improve future trust.
 Breaking deals, sabotage, and free-riding on crises erode trust.
 Influence comes from beacons and crisis contributions.
 
@@ -269,6 +274,7 @@ Make promises, propose trades, form alliances — but you choose whether to foll
 ## Winning
 The game runs for a hidden number of rounds. Highest VP at the end wins.
 VP comes from structures, crisis contributions, longest road, and most influence bonuses.
+Damaging the commons can slash the final payable prize pool and roll that amount into the next game.
 `;
 
   constructor(personaPath: string, agentId: string) {
@@ -516,6 +522,23 @@ VP comes from structures, crisis contributions, longest road, and most influence
       `Next 5 production numbers: ${view.nextProduction.join(", ")}`,
       "",
     );
+
+    parts.push("### Commons Health");
+    parts.push(
+      `Score: ${view.currentCommonsHealth.score}/100`,
+      `Prize pool: ${view.prizePool} wei | payable: ${view.payablePrizePool} wei | slashed: ${view.slashedPrizePool} wei`,
+      "",
+    );
+
+    if (view.visibleCommitments.length > 0) {
+      parts.push("### Visible Commitments");
+      for (const commitment of view.visibleCommitments.slice(-8)) {
+        parts.push(
+          `- ${commitment.id}: ${commitment.summary} [${commitment.resolutionStatus}]`,
+        );
+      }
+      parts.push("");
+    }
 
     if (incomingMessages.length > 0) {
       parts.push("### Incoming Messages");

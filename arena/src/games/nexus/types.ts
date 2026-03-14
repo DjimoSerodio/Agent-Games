@@ -246,6 +246,161 @@ export interface NexusPlayerState {
 }
 
 // ============================================================
+// Commitment Ledger
+// ============================================================
+
+export type CommitmentType =
+  | "resource_transfer"
+  | "non_attack"
+  | "crisis_support"
+  | "alliance"
+  | "prize_share"
+  | "non_build"
+  | "other";
+
+export type ResolutionStatus =
+  | "candidate"
+  | "pending"
+  | "fulfilled"
+  | "breached"
+  | "non_triggered"
+  | "contested"
+  | "expired";
+
+export type AttestationPhase = "existence" | "fulfillment";
+
+export type AttestationVerdict =
+  | "confirm"
+  | "fulfill"
+  | "breach"
+  | "non_trigger"
+  | "contest"
+  | "receive";
+
+export type EvidenceType =
+  | "message"
+  | "trade"
+  | "absence"
+  | "crisis_contribution"
+  | "winner"
+  | "payout_receipt"
+  | "attestation"
+  | "system";
+
+export type BehaviorTagKind =
+  | "sabotage"
+  | "crisis_free_rider"
+  | "crisis_contributor"
+  | "stewardship"
+  | "extractive"
+  | "opportunistic_targeting";
+
+export interface CommitmentCondition {
+  type:
+    | "if_i_win"
+    | "if_agent_wins"
+    | "if_no_attack"
+    | "if_resource_transfer"
+    | "if_crisis_contribution"
+    | "by_round"
+    | "manual";
+  summary: string;
+  agentId?: AgentId;
+  resources?: Partial<ResourceInventory>;
+  round?: number;
+}
+
+export interface EvidenceRef {
+  id: string;
+  type: EvidenceType;
+  ref: string;
+  summary: string;
+  round: number;
+  actorId?: AgentId;
+}
+
+export interface AttestationRecord {
+  id: string;
+  commitmentId: string;
+  actor: AgentId;
+  round: number;
+  phase: AttestationPhase;
+  verdict: AttestationVerdict;
+  detail: string;
+  evidenceRefs: string[];
+  weight: number;
+  accepted: boolean;
+}
+
+export interface ContestedClaim {
+  id: string;
+  commitmentId: string;
+  actor: AgentId;
+  round: number;
+  reason: string;
+  evidenceRefs: string[];
+}
+
+export interface PayoutReceipt {
+  id: string;
+  commitmentId: string;
+  from: AgentId;
+  to: AgentId;
+  shareBps?: number;
+  amountWei?: string;
+  proof: string;
+  round: number;
+}
+
+export interface BehaviorTag {
+  id: string;
+  round: number;
+  actor: AgentId;
+  kind: BehaviorTagKind;
+  severity: "low" | "medium" | "high";
+  description: string;
+  relatedAgentId?: AgentId;
+  trustDeltaHint?: number;
+}
+
+export interface CommitmentCandidate {
+  id: string;
+  messageId: string;
+  round: number;
+  sender: AgentId;
+  counterparties: AgentId[];
+  type: CommitmentType;
+  visibility: "public" | "private";
+  confidence: number;
+  rawText: string;
+  summary: string;
+  conditions: CommitmentCondition[];
+}
+
+export interface CommitmentRecord extends CommitmentCandidate {
+  candidateId: string;
+  promisor: AgentId;
+  resolutionStatus: ResolutionStatus;
+  attestations: AttestationRecord[];
+  evidence: EvidenceRef[];
+  dueByRound: number | null;
+  resolvedRound: number | null;
+  contested: boolean;
+  payoutShareBps: number | null;
+  behaviorTags: BehaviorTag[];
+}
+
+export interface CommonsHealthSnapshot {
+  round: number;
+  score: number;
+  payableFraction: number;
+  reasons: string[];
+  payablePrizePoolWei: string;
+  slashedPrizePoolWei: string;
+  carryoverPrizePoolWei: string;
+}
+
+// ============================================================
 // Game State
 // ============================================================
 
@@ -274,8 +429,23 @@ export interface NexusGameState extends GameState {
 
   // Economics
   prizePool: bigint; // Accumulated fees
+  payablePrizePool: bigint;
+  slashedPrizePool: bigint;
+  carryoverPrizePool: bigint;
   moveCount: number;
   messageCount: number;
+
+  // Commitment ledger
+  commitmentCandidates: CommitmentCandidate[];
+  commitments: CommitmentRecord[];
+  attestations: AttestationRecord[];
+  contestedClaims: ContestedClaim[];
+  behaviorTags: BehaviorTag[];
+  payoutReceipts: PayoutReceipt[];
+
+  // Commons health / prize carryover
+  commonsHealthHistory: CommonsHealthSnapshot[];
+  currentCommonsHealth: CommonsHealthSnapshot;
 
   // Hidden state (not shown to agents)
   actualMaxRounds: number; // Hidden end condition
@@ -315,11 +485,19 @@ export interface NexusAgentView {
   // Crisis
   activeCrisis: CrisisEvent | null;
 
+  // Commitment ledger
+  visibleCommitments: CommitmentRecord[];
+  visibleAttestations: AttestationRecord[];
+
   // Messages I can see
   messageHistory: import("../../core/types.js").Message[];
 
-  // Prize pool
+  // Prize pool / commons health
   prizePool: string; // Wei as string
+  payablePrizePool: string;
+  slashedPrizePool: string;
+  carryoverPrizePool: string;
+  currentCommonsHealth: CommonsHealthSnapshot;
 }
 
 // ============================================================

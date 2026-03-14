@@ -2,7 +2,7 @@
  * Nexus Engine Tests
  *
  * Tests for game mechanics: production, building, trading, sabotage,
- * crisis, structure placement, and promise tracking.
+ * crisis, structure placement, commitment ledger, and prize carryover.
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
@@ -12,7 +12,6 @@ import { TrustGraph } from "../src/trust/trust-graph.js";
 import { SimpleAgent } from "../src/agents/simple-agent.js";
 import {
   GameConfig,
-  RoundResult,
   GameAgent,
   AgentIdentity,
   Message,
@@ -107,6 +106,7 @@ describe("NexusEngine", () => {
     eventBus = new EventBus();
     trustGraph = new TrustGraph();
     config = makeConfig();
+    (NexusEngine as any).pendingPrizeCarryoverWei = 0n;
   });
 
   describe("game initialization", () => {
@@ -253,7 +253,7 @@ describe("NexusEngine", () => {
   });
 
   describe("scoring", () => {
-    it("trust bonus applied at game end", async () => {
+    it("trust does not add VP at game end", async () => {
       const engine = new NexusEngine(config, eventBus, trustGraph);
       for (let i = 0; i < 4; i++) {
         engine.registerAgent(new SimpleAgent(`agent-${i}`, "cooperator", `P${i}`));
@@ -262,9 +262,8 @@ describe("NexusEngine", () => {
       await engine.run();
       const state = engine.getState();
 
-      // Final scores should include trust bonuses (0-3 VP)
       for (const [agentId, score] of Object.entries(state.scores)) {
-        expect(score).toBeGreaterThanOrEqual(0);
+        expect(score).toBe(state.playerStates.get(agentId)!.vp);
       }
     });
   });
@@ -285,6 +284,218 @@ describe("NexusEngine", () => {
         expect(ps!.longestRoad).toBeGreaterThanOrEqual(5);
       }
     });
+  });
+});
+
+describe("NexusEngine - commitment ledger", () => {
+  let eventBus: EventBus;
+  let trustGraph: TrustGraph;
+  let config: GameConfig;
+
+  beforeEach(() => {
+    eventBus = new EventBus();
+    trustGraph = new TrustGraph();
+    config = makeConfig();
+    (NexusEngine as any).pendingPrizeCarryoverWei = 0n;
+  });
+
+  it("extracts commitment candidates and prize-share conditions from dialogue", () => {
+    const engine = new NexusEngine(config, eventBus, trustGraph);
+    const message: Message = {
+      id: "msg-1",
+      gameId: "test-game",
+      round: 1,
+      phase: "negotiation",
+      sender: "agent-1",
+      recipient: "agent-2",
+      content: "If I win, I'll split 20% of my prize with you if you don't attack me.",
+      type: "private",
+      timestamp: Date.now(),
+    };
+
+    (engine as any).processMessagesForLedger([message]);
+    const state = engine.getState();
+
+    expect(state.commitmentCandidates).toHaveLength(1);
+    expect(state.commitments).toHaveLength(1);
+    expect(state.commitments[0].type).toBe("prize_share");
+    expect(state.commitments[0].payoutShareBps).toBe(2000);
+    expect(state.commitments[0].conditions.some((c: any) => c.type === "if_i_win")).toBe(true);
+    expect(state.commitments[0].conditions.some((c: any) => c.type === "if_no_attack")).toBe(true);
+  });
+
+  it("only accepts attestations from participants", () => {
+    const engine = new NexusEngine(config, eventBus, trustGraph);
+    engine.registerAgent(new MockAgent("agent-1"));
+    engine.registerAgent(new MockAgent("agent-2"));
+    engine.registerAgent(new MockAgent("agent-3"));
+
+    const message: Message = {
+      id: "msg-1",
+      gameId: "test-game",
+      round: 1,
+      phase: "negotiation",
+      sender: "agent-1",
+      recipient: "agent-2",
+      content: "I'll give you ore next round.",
+      type: "private",
+      timestamp: Date.now(),
+    };
+    (engine as any).processMessagesForLedger([message]);
+
+    const outsiderAttestation: Message = {
+      id: "msg-2",
+      gameId: "test-game",
+      round: 1,
+      phase: "negotiation",
+      sender: "agent-3",
+      recipient: "broadcast",
+      content: "ATTEST commitment-1 exists",
+      type: "public",
+      timestamp: Date.now(),
+    };
+    const counterpartyAttestation: Message = {
+      id: "msg-3",
+      gameId: "test-game",
+      round: 1,
+      phase: "negotiation",
+      sender: "agent-2",
+      recipient: "broadcast",
+      content: "ATTEST commitment-1 exists",
+      type: "public",
+      timestamp: Date.now(),
+    };
+    (engine as any).processMessagesForLedger([outsiderAttestation, counterpartyAttestation]);
+
+    const state = engine.getState();
+    expect(state.attestations).toHaveLength(1);
+    expect(state.attestations[0].actor).toBe("agent-2");
+  });
+
+  it("fulfills attested commitments when objective evidence exists", () => {
+    const engine = new NexusEngine(config, eventBus, trustGraph);
+    engine.registerAgent(new MockAgent("agent-1"));
+    engine.registerAgent(new MockAgent("agent-2"));
+
+    const message: Message = {
+      id: "msg-1",
+      gameId: "test-game",
+      round: 1,
+      phase: "negotiation",
+      sender: "agent-1",
+      recipient: "agent-2",
+      content: "I will trade you grain next round.",
+      type: "private",
+      timestamp: Date.now(),
+    };
+    (engine as any).processMessagesForLedger([message]);
+
+    const commitment = (engine as any).state.commitments[0];
+    (engine as any).createAttestationRecord(commitment, "agent-2", "existence", "confirm", "confirmed", []);
+    (engine as any).appendEvidence(commitment, "trade", "trade-1", "trade completed", 1, "agent-1");
+
+    const trustUpdates = (engine as any).resolveSingleCommitment(commitment);
+
+    expect(commitment.resolutionStatus).toBe("fulfilled");
+    expect(trustUpdates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          from: "agent-2",
+          to: "agent-1",
+          reason: "attested_commitment_fulfilled",
+        }),
+      ]),
+    );
+  });
+
+  it("marks conditional prize-share commitments as non-triggered when the promisor did not win", () => {
+    const engine = new NexusEngine(config, eventBus, trustGraph);
+    engine.registerAgent(new MockAgent("agent-1"));
+    engine.registerAgent(new MockAgent("agent-2"));
+
+    const message: Message = {
+      id: "msg-1",
+      gameId: "test-game",
+      round: 1,
+      phase: "negotiation",
+      sender: "agent-1",
+      recipient: "agent-2",
+      content: "If I win, I'll share 20% of the prize with you.",
+      type: "private",
+      timestamp: Date.now(),
+    };
+    (engine as any).processMessagesForLedger([message]);
+    const commitment = (engine as any).state.commitments[0];
+    (engine as any).createAttestationRecord(commitment, "agent-2", "existence", "confirm", "confirmed", []);
+    (engine as any).state.winner = "agent-2";
+
+    const trustUpdates = (engine as any).resolveSingleCommitment(commitment);
+
+    expect(commitment.resolutionStatus).toBe("non_triggered");
+    expect(trustUpdates).toHaveLength(0);
+  });
+
+  it("marks conflicting fulfillment claims as contested", () => {
+    const engine = new NexusEngine(config, eventBus, trustGraph);
+    engine.registerAgent(new MockAgent("agent-1"));
+    engine.registerAgent(new MockAgent("agent-2"));
+
+    const message: Message = {
+      id: "msg-1",
+      gameId: "test-game",
+      round: 1,
+      phase: "negotiation",
+      sender: "agent-1",
+      recipient: "agent-2",
+      content: "I will give you ore next round.",
+      type: "private",
+      timestamp: Date.now(),
+    };
+    (engine as any).processMessagesForLedger([message]);
+    const commitment = (engine as any).state.commitments[0];
+    (engine as any).createAttestationRecord(commitment, "agent-2", "existence", "confirm", "confirmed", []);
+    (engine as any).createAttestationRecord(commitment, "agent-1", "fulfillment", "fulfill", "I paid", []);
+    (engine as any).createAttestationRecord(commitment, "agent-2", "fulfillment", "breach", "I did not receive it", []);
+
+    const trustUpdates = (engine as any).resolveSingleCommitment(commitment);
+
+    expect(commitment.resolutionStatus).toBe("contested");
+    expect(trustUpdates).toHaveLength(0);
+    expect((engine as any).state.contestedClaims).toHaveLength(1);
+  });
+
+  it("slashes deteriorated prize pools and rolls carryover into the next game", () => {
+    const engine = new NexusEngine(config, eventBus, trustGraph);
+    const internalState = (engine as any).state;
+    internalState.prizePool = 100n;
+
+    let changed = 0;
+    for (const tile of internalState.hexGrid.values()) {
+      if (tile.terrain !== "nexus" && changed < 3) {
+        tile.terrain = "wasteland";
+        tile.productionNumber = 0;
+        changed++;
+      }
+    }
+    internalState.behaviorTags.push({
+      id: "behavior-1",
+      round: 1,
+      actor: "agent-1",
+      kind: "sabotage",
+      severity: "high",
+      description: "Sabotage damaged the commons",
+      trustDeltaHint: -0.2,
+    });
+
+    (engine as any).computeFinalScores();
+    const state = engine.getState();
+
+    expect(state.slashedPrizePool).toBeGreaterThan(0n);
+    expect(state.payablePrizePool).toBeLessThan(state.prizePool);
+    expect(state.currentCommonsHealth.score).toBeLessThan(100);
+
+    const nextEngine = new NexusEngine(makeConfig({ id: "next-game" }), new EventBus(), new TrustGraph());
+    expect(nextEngine.getState().prizePool).toBe(state.carryoverPrizePool);
   });
 });
 

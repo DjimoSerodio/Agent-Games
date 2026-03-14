@@ -444,6 +444,12 @@ const state = {
   phase: '',
   crisis: null,
   prizePool: 0,
+  payablePrizePool: 0,
+  slashedPrizePool: 0,
+  carryoverPrizePool: 0,
+  commonsHealth: null,
+  commitments: [],
+  attestations: [],
   moveCount: 0,
   trustMatrix: { agents: [], matrix: [] },
   hexGrid: [],
@@ -520,6 +526,12 @@ function handleGameEvent(ev) {
       state.gameId = ev.gameId;
       state.gameOver = false;
       state.prizePool = 0;
+      state.payablePrizePool = 0;
+      state.slashedPrizePool = 0;
+      state.carryoverPrizePool = 0;
+      state.commonsHealth = null;
+      state.commitments = [];
+      state.attestations = [];
       state.moveCount = 0;
       state.structureOffsets.clear();
       // Reset history
@@ -581,9 +593,29 @@ function handleGameEvent(ev) {
         }
       }
       if (d.bonusHolders) state.bonusHolders = d.bonusHolders;
-      if (d.moveCount) {
+      if (d.moveCount !== undefined) {
         state.moveCount = d.moveCount;
-        state.prizePool = state.moveCount * 0.005;
+      }
+      if (d.prizePool !== undefined) {
+        state.prizePool = Number(d.prizePool) / 1e18;
+      }
+      if (d.payablePrizePool !== undefined) {
+        state.payablePrizePool = Number(d.payablePrizePool) / 1e18;
+      }
+      if (d.slashedPrizePool !== undefined) {
+        state.slashedPrizePool = Number(d.slashedPrizePool) / 1e18;
+      }
+      if (d.carryoverPrizePool !== undefined) {
+        state.carryoverPrizePool = Number(d.carryoverPrizePool) / 1e18;
+      }
+      if (d.commonsHealth) {
+        state.commonsHealth = d.commonsHealth;
+      }
+      if (d.commitments) {
+        state.commitments = d.commitments;
+      }
+      if (d.attestations) {
+        state.attestations = d.attestations;
         updatePoolDisplay();
       }
       if (d.actionSummary) {
@@ -721,6 +753,28 @@ function handleGameEvent(ev) {
       }
       break;
 
+    case 'commitment.detected':
+      addSystemMsg(`Commitment detected: ${d.commitment?.id || '?'} ${d.commitment?.summary || ''}`, 'system');
+      break;
+
+    case 'commitment.attested':
+      addSystemMsg(`Attestation: ${d.commitmentId || d.attestation?.commitmentId} ${d.attestation?.verdict || d.verdict || ''}`, 'trust');
+      break;
+
+    case 'commitment.resolved':
+      addSystemMsg(`Commitment ${d.commitmentId} ${d.status}`, d.status === 'breached' ? 'crisis' : 'system');
+      break;
+
+    case 'prize.slashed':
+      state.prizePool = Number(d.prizePoolWei) / 1e18;
+      state.payablePrizePool = Number(d.payablePrizePoolWei) / 1e18;
+      state.slashedPrizePool = Number(d.slashedPrizePoolWei) / 1e18;
+      state.carryoverPrizePool = Number(d.carryoverPrizePoolWei) / 1e18;
+      state.commonsHealth = d.commonsHealth;
+      updatePoolDisplay();
+      addSystemMsg(`Commons slash: ${state.slashedPrizePool.toFixed(3)} ETH rolls forward`, 'crisis');
+      break;
+
     case 'game.ended':
       state.gameOver = true;
       document.getElementById('round-display').textContent = 'Game Over';
@@ -735,9 +789,10 @@ function handleGameEvent(ev) {
 }
 
 function updatePoolDisplay() {
-  const v = state.prizePool.toFixed(3) + ' ETH';
-  document.getElementById('pool-value').textContent = v;
-  document.getElementById('pool-display').textContent = v;
+  const total = state.prizePool.toFixed(3) + ' ETH';
+  const payable = state.payablePrizePool.toFixed(3) + ' ETH';
+  document.getElementById('pool-value').textContent = total;
+  document.getElementById('pool-display').textContent = `${total} / pay ${payable}`;
 }
 
 // ============================================================

@@ -34,7 +34,17 @@ import {
   PRODUCTION_WHEEL,
   RESOURCE_CAP,
   EMPTY_INVENTORY,
-  PromiseRecord,
+  CommitmentCandidate,
+  CommitmentCondition,
+  CommitmentRecord,
+  AttestationRecord,
+  AttestationVerdict,
+  BehaviorTag,
+  CommonsHealthSnapshot,
+  ContestedClaim,
+  EvidenceRef,
+  PayoutReceipt,
+  ResolutionStatus,
 } from "./types.js";
 import {
   generateHexGrid,
@@ -46,14 +56,28 @@ import {
 import { TrustGraph } from "../../trust/trust-graph.js";
 
 export class NexusEngine extends GameEngine<NexusGameState> {
+  private static pendingPrizeCarryoverWei = 0n;
+
   private trustGraph: TrustGraph;
-  private promises: PromiseRecord[] = [];
   private pendingTrades: Map<string, { from: AgentId; to: AgentId; give: Partial<ResourceInventory>; receive: Partial<ResourceInventory> }> = new Map();
   private crisisCooldownRounds = 3;
+  private commitmentCounter = 1;
+  private candidateCounter = 1;
+  private attestationCounter = 1;
+  private evidenceCounter = 1;
+  private contestedCounter = 1;
+  private behaviorCounter = 1;
+  private payoutReceiptCounter = 1;
 
   constructor(config: GameConfig, eventBus: EventBus, trustGraph: TrustGraph) {
     super(config, eventBus);
     this.trustGraph = trustGraph;
+  }
+
+  override async run(): Promise<RoundResult[]> {
+    const results = await super.run();
+    this.finalizePostGameCommitments();
+    return results;
   }
 
   // ============================================================
@@ -62,9 +86,18 @@ export class NexusEngine extends GameEngine<NexusGameState> {
 
   protected createInitialState(config: GameConfig): NexusGameState {
     const hexGrid = generateHexGrid(config.maxPlayers, Date.now());
+    const carryoverPrizePool = NexusEngine.takePrizeCarryover();
 
     // Determine hidden max rounds (20-30, agents don't know exact number)
     const actualMaxRounds = 20 + Math.floor(Math.random() * 11); // 20-30
+    const initialCommonsHealth = this.buildCommonsHealthSnapshot(
+      0,
+      100,
+      ["Commons intact at game start"],
+      carryoverPrizePool,
+      0n,
+      carryoverPrizePool,
+    );
 
     return {
       gameId: config.id,
@@ -86,9 +119,20 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       longestRoadHolder: null,
       mostInfluenceHolder: null,
       mostCrisisContribHolder: null,
-      prizePool: 0n,
+      prizePool: carryoverPrizePool,
+      payablePrizePool: carryoverPrizePool,
+      slashedPrizePool: 0n,
+      carryoverPrizePool,
       moveCount: 0,
       messageCount: 0,
+      commitmentCandidates: [],
+      commitments: [],
+      attestations: [],
+      contestedClaims: [],
+      behaviorTags: [],
+      payoutReceipts: [],
+      commonsHealthHistory: [initialCommonsHealth],
+      currentCommonsHealth: initialCommonsHealth,
       actualMaxRounds,
     };
   }
@@ -206,8 +250,14 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       wheelPosition: this.state.wheelPosition,
       nextProduction,
       activeCrisis: this.state.activeCrisis,
+      visibleCommitments: this.getVisibleCommitments(agentId),
+      visibleAttestations: this.getVisibleAttestations(agentId),
       messageHistory: this.filterMessagesForAgent(agentId, this.messageLog),
       prizePool: this.state.prizePool.toString(),
+      payablePrizePool: this.state.payablePrizePool.toString(),
+      slashedPrizePool: this.state.slashedPrizePool.toString(),
+      carryoverPrizePool: this.state.carryoverPrizePool.toString(),
+      currentCommonsHealth: this.state.currentCommonsHealth,
     };
   }
 
@@ -340,9 +390,10 @@ export class NexusEngine extends GameEngine<NexusGameState> {
 
     // Increment message count
     this.state.messageCount += messages.length;
+    this.state.prizePool += this.config.messageFeeWei * BigInt(messages.length);
 
-    // Scan for promises in this round's messages
-    this.scanMessagesForPromises(messages);
+    // Update commitment ledger from negotiation traffic
+    this.processMessagesForLedger(messages);
 
     return messages;
   }
@@ -351,6 +402,9 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     const outcomes: ActionOutcome[] = [];
     const trustUpdates: TrustUpdate[] = [];
     const scoreChanges: Record<AgentId, number> = {};
+    const resolvedTrades: Array<{ from: AgentId; to: AgentId; round: number }> = [];
+    const sabotageEvents: Array<{ from: AgentId; to: AgentId; round: number }> = [];
+    const crisisContributors = new Set<AgentId>();
 
     for (const agentId of this.state.players) {
       scoreChanges[agentId] = 0;
@@ -371,7 +425,13 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         this.state.moveCount++;
         this.state.prizePool += this.config.moveFeeWei;
 
-        const outcome = this.resolveAction(agentId, action, tradeSubmissions, trustUpdates);
+        const outcome = this.resolveAction(
+          agentId,
+          action,
+          tradeSubmissions,
+          trustUpdates,
+          sabotageEvents,
+        );
         outcomes.push(outcome);
 
         if (outcome.success) {
@@ -386,15 +446,15 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     }
 
     // Resolve matched trades
-    this.resolveMatchedTrades(tradeSubmissions, outcomes, trustUpdates);
-
-    // Check for stale promises (unfulfilled after 3 rounds)
-    this.checkStalePromises(trustUpdates);
+    this.resolveMatchedTrades(tradeSubmissions, outcomes, trustUpdates, resolvedTrades);
 
     // Resolve crisis if active
     if (this.state.activeCrisis && !this.state.activeCrisis.resolved) {
-      this.resolveCrisis(outcomes, trustUpdates, scoreChanges);
+      this.resolveCrisis(outcomes, trustUpdates, scoreChanges, crisisContributors);
     }
+
+    this.resolveCommitmentLedger(trustUpdates, resolvedTrades, sabotageEvents, crisisContributors);
+    this.refreshCommonsHealth();
 
     // Update scores
     for (const [agentId, delta] of Object.entries(scoreChanges)) {
@@ -449,18 +509,11 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   }
 
   protected computeFinalScores(): Record<AgentId, number> {
+    this.finalizePrizePool();
     const scores: Record<AgentId, number> = {};
 
     for (const [agentId, ps] of this.state.playerStates) {
-      let totalVP = ps.vp;
-
-      // Trust bonus (0-3 VP based on EigenTrust score)
-      const trustScore = this.trustGraph.getGlobalScore(agentId);
-      if (trustScore >= 0.8) totalVP += 3;
-      else if (trustScore >= 0.6) totalVP += 2;
-      else if (trustScore >= 0.3) totalVP += 1;
-
-      scores[agentId] = totalVP;
+      scores[agentId] = ps.vp;
     }
 
     return scores;
@@ -475,6 +528,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     action: NexusAction,
     tradeSubmissions: Map<string, NexusAction>,
     trustUpdates: TrustUpdate[],
+    sabotageEvents: Array<{ from: AgentId; to: AgentId; round: number }>,
   ): ActionOutcome {
     const ps = this.state.playerStates.get(agentId)!;
 
@@ -680,6 +734,15 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         ps.resources.energy--;
         ps.resources.ore--;
         ps.influence -= 2; // Sabotage costs influence
+        sabotageEvents.push({ from: agentId, to: targetId, round: this.state.round });
+        this.recordBehaviorTag(
+          agentId,
+          "sabotage",
+          targetId,
+          `Sabotaged ${targetId}`,
+          "high",
+          -0.25,
+        );
 
         // Trust penalties: everyone loses trust in the saboteur
         for (const otherId of this.state.players) {
@@ -739,6 +802,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     submissions: Map<string, NexusAction>,
     outcomes: ActionOutcome[],
     trustUpdates: TrustUpdate[],
+    resolvedTrades: Array<{ from: AgentId; to: AgentId; round: number }>,
   ): void {
     // Group by trade pair
     const pairs = new Map<string, NexusAction[]>();
@@ -803,8 +867,23 @@ export class NexusEngine extends GameEngine<NexusGameState> {
           ps1.resources[resType] += amt;
         }
 
-        // Track promise fulfillment: if a trade was promised in negotiation, mark fulfilled
-        this.fulfillTradePromises(a1.agentId, a2.agentId, trustUpdates);
+        resolvedTrades.push({ from: a1.agentId, to: a2.agentId, round: this.state.round });
+        this.recordBehaviorTag(
+          a1.agentId,
+          "stewardship",
+          a2.agentId,
+          `Completed a negotiated trade with ${a2.agentId}`,
+          "low",
+          0.1,
+        );
+        this.recordBehaviorTag(
+          a2.agentId,
+          "stewardship",
+          a1.agentId,
+          `Completed a negotiated trade with ${a1.agentId}`,
+          "low",
+          0.1,
+        );
 
         // Trust boost for completed trade
         trustUpdates.push(
@@ -821,9 +900,6 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         // Only one side submitted - trade failed
         const a = actions[0];
         const partnerId = a.params.partnerId as AgentId;
-
-        // Check if a trade was promised but not reciprocated — broken promise
-        this.breakTradePromises(a.agentId, partnerId, trustUpdates);
 
         // Mild trust penalty
         trustUpdates.push({
@@ -864,6 +940,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     outcomes: ActionOutcome[],
     trustUpdates: TrustUpdate[],
     scoreChanges: Record<AgentId, number>,
+    crisisContributors: Set<AgentId>,
   ): void {
     const crisis = this.state.activeCrisis!;
     const threshold = crisis.threshold;
@@ -889,11 +966,20 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     if (resolved) {
       // Reward contributors
       for (const [agentId, _] of Object.entries(crisis.contributions)) {
+        crisisContributors.add(agentId);
         const ps = this.state.playerStates.get(agentId);
         if (ps) {
           ps.vp += crisis.rewardVP;
           ps.influence += crisis.rewardInfluence;
           scoreChanges[agentId] = (scoreChanges[agentId] || 0) + crisis.rewardVP;
+          this.recordBehaviorTag(
+            agentId,
+            "crisis_contributor",
+            undefined,
+            `Contributed to resolving ${crisis.type}`,
+            "medium",
+            0.18,
+          );
 
           // Trust boost among contributors
           for (const otherId of Object.keys(crisis.contributions)) {
@@ -922,8 +1008,26 @@ export class NexusEngine extends GameEngine<NexusGameState> {
 
         // Non-contributors lose trust from contributors
         const contributors = new Set(Object.keys(crisis.contributions));
+        for (const contributorId of contributors) {
+          this.recordBehaviorTag(
+            contributorId,
+            "crisis_contributor",
+            undefined,
+            `Contributed during failed crisis ${crisis.type}`,
+            "low",
+            0.08,
+          );
+        }
         for (const agentId of this.state.players) {
           if (!contributors.has(agentId)) {
+            this.recordBehaviorTag(
+              agentId,
+              "crisis_free_rider",
+              undefined,
+              `Did not contribute to ${crisis.type}`,
+              "medium",
+              -0.2,
+            );
             // Free-rider penalty
             for (const contributorId of contributors) {
               trustUpdates.push({
@@ -932,29 +1036,6 @@ export class NexusEngine extends GameEngine<NexusGameState> {
                 delta: -0.25,
                 reason: "crisis_free_rider",
               });
-            }
-          }
-        }
-
-        // Check crisis promises — anyone who promised to contribute but didn't
-        for (const promise of this.promises) {
-          if (promise.type === "crisis" && promise.fulfilled === null) {
-            if (!contributors.has(promise.from)) {
-              promise.fulfilled = false;
-              promise.detectedInRound = this.state.round;
-              // General trust penalty for broken crisis promise
-              for (const otherId of this.state.players) {
-                if (otherId === promise.from) continue;
-                trustUpdates.push({
-                  from: otherId,
-                  to: promise.from,
-                  delta: -0.15,
-                  reason: "broke_crisis_promise",
-                });
-              }
-            } else {
-              promise.fulfilled = true;
-              promise.detectedInRound = this.state.round;
             }
           }
         }
@@ -1048,6 +1129,28 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       wheelPosition: this.state.wheelPosition,
       moveCount: this.state.moveCount,
       prizePool: this.state.prizePool.toString(),
+      payablePrizePool: this.state.payablePrizePool.toString(),
+      slashedPrizePool: this.state.slashedPrizePool.toString(),
+      carryoverPrizePool: this.state.carryoverPrizePool.toString(),
+      commonsHealth: this.state.currentCommonsHealth,
+      commitments: this.state.commitments.map((commitment) => ({
+        id: commitment.id,
+        type: commitment.type,
+        promisor: commitment.promisor,
+        counterparties: commitment.counterparties,
+        resolutionStatus: commitment.resolutionStatus,
+        summary: commitment.summary,
+        dueByRound: commitment.dueByRound,
+        payoutShareBps: commitment.payoutShareBps,
+      })),
+      attestations: this.state.attestations.map((attestation) => ({
+        id: attestation.id,
+        commitmentId: attestation.commitmentId,
+        actor: attestation.actor,
+        phase: attestation.phase,
+        verdict: attestation.verdict,
+        weight: attestation.weight,
+      })),
       bonusHolders: {
         longestRoad: this.state.longestRoadHolder,
         mostInfluence: this.state.mostInfluenceHolder,
@@ -1451,180 +1554,742 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   }
 
   // ============================================================
-  // Promise tracking
+  // Commitment ledger
   // ============================================================
 
-  /**
-   * Record a trade promise between two agents.
-   * Called when an agent sends a message containing trade-related language
-   * to another specific agent during negotiation.
-   */
-  recordTradePromise(from: AgentId, to: AgentId, description: string): void {
-    this.promises.push({
-      id: `promise-${this.promises.length + 1}`,
+  public submitCommitmentAttestation(
+    commitmentId: string,
+    actor: AgentId,
+    verdict: AttestationVerdict,
+    detail: string,
+    phase: "existence" | "fulfillment" = "fulfillment",
+  ): AttestationRecord | null {
+    const commitment = this.state.commitments.find((item) => item.id === commitmentId);
+    if (!commitment || !this.canActorAttest(commitment, actor)) {
+      return null;
+    }
+
+    const attestation = this.createAttestationRecord(
+      commitment,
+      actor,
+      phase,
+      verdict,
+      detail,
+      [],
+    );
+    if (!attestation) return null;
+
+    const trustUpdates = this.resolveSingleCommitment(commitment);
+    this.applyImmediateTrustUpdates(trustUpdates);
+    return attestation;
+  }
+
+  public recordPayoutReceipt(
+    commitmentId: string,
+    from: AgentId,
+    to: AgentId,
+    proof: string,
+    shareBps?: number,
+    amountWei?: bigint,
+  ): PayoutReceipt | null {
+    const commitment = this.state.commitments.find((item) => item.id === commitmentId);
+    if (!commitment || commitment.type !== "prize_share") {
+      return null;
+    }
+
+    const receipt: PayoutReceipt = {
+      id: `receipt-${this.payoutReceiptCounter++}`,
+      commitmentId,
       from,
       to,
-      type: "trade",
-      description,
+      shareBps,
+      amountWei: amountWei?.toString(),
+      proof,
       round: this.state.round,
-      fulfilled: null,
-      detectedInRound: null,
-    });
-  }
+    };
+    this.state.payoutReceipts.push(receipt);
 
-  /**
-   * Record an alliance promise.
-   */
-  recordAlliancePromise(from: AgentId, to: AgentId, description: string): void {
-    this.promises.push({
-      id: `promise-${this.promises.length + 1}`,
+    const evidence = this.appendEvidence(
+      commitment,
+      "payout_receipt",
+      receipt.id,
+      `Payout receipt submitted: ${proof}`,
+      this.state.round,
       from,
-      to,
-      type: "alliance",
-      description,
-      round: this.state.round,
-      fulfilled: null,
-      detectedInRound: null,
-    });
+    );
+
+    this.emitEvent("commitment.attested", {
+      commitmentId,
+      actor: from,
+      verdict: "fulfill",
+      evidence,
+      receipt,
+    }, { agents: "all", spectators: true });
+
+    const trustUpdates = this.resolveSingleCommitment(commitment);
+    this.applyImmediateTrustUpdates(trustUpdates);
+    return receipt;
   }
 
-  /**
-   * Record a crisis contribution promise.
-   */
-  recordCrisisPromise(from: AgentId, description: string): void {
-    this.promises.push({
-      id: `promise-${this.promises.length + 1}`,
-      from,
-      to: "all", // Crisis promises are to everyone
-      type: "crisis",
-      description,
-      round: this.state.round,
-      fulfilled: null,
-      detectedInRound: null,
-    });
+  private processMessagesForLedger(messages: Message[]): void {
+    for (const message of messages) {
+      this.detectCommitmentFromMessage(message);
+      this.detectAttestationFromMessage(message);
+    }
   }
 
-  /**
-   * Mark trade promises as fulfilled between two agents.
-   */
-  private fulfillTradePromises(agent1: AgentId, agent2: AgentId, trustUpdates: TrustUpdate[]): void {
-    for (const promise of this.promises) {
-      if (promise.fulfilled !== null) continue; // Already resolved
-      if (promise.type !== "trade") continue;
-      // Check if this trade fulfills a promise between these two agents
-      if (
-        (promise.from === agent1 && promise.to === agent2) ||
-        (promise.from === agent2 && promise.to === agent1)
-      ) {
-        promise.fulfilled = true;
-        promise.detectedInRound = this.state.round;
-        // Bonus trust for keeping promises (on top of trade trust)
+  private detectCommitmentFromMessage(message: Message): void {
+    const lower = message.content.toLowerCase();
+    const type = this.classifyCommitmentType(lower);
+    if (!type) return;
+
+    const conditions = this.extractCommitmentConditions(lower, message);
+    const summary = message.content.trim().slice(0, 160);
+    const counterparties =
+      message.recipient === "broadcast" ? [] : [message.recipient as AgentId];
+
+    const duplicate = this.state.commitments.find((item) =>
+      item.promisor === message.sender &&
+      item.type === type &&
+      item.round === message.round &&
+      item.summary === summary,
+    );
+    if (duplicate) return;
+
+    const candidate: CommitmentCandidate = {
+      id: `candidate-${this.candidateCounter++}`,
+      messageId: message.id,
+      round: message.round,
+      sender: message.sender,
+      counterparties,
+      type,
+      visibility: message.type === "public" ? "public" : "private",
+      confidence: this.estimateCommitmentConfidence(type, lower),
+      rawText: message.content,
+      summary,
+      conditions,
+    };
+    this.state.commitmentCandidates.push(candidate);
+
+    const commitment: CommitmentRecord = {
+      ...candidate,
+      id: `commitment-${this.commitmentCounter++}`,
+      candidateId: candidate.id,
+      promisor: message.sender,
+      resolutionStatus: "pending",
+      attestations: [],
+      evidence: [],
+      dueByRound: this.inferDueRound(type, conditions),
+      resolvedRound: null,
+      contested: false,
+      payoutShareBps: this.extractPayoutShareBps(lower),
+      behaviorTags: [],
+    };
+
+    this.appendEvidence(
+      commitment,
+      "message",
+      message.id,
+      `Extracted from ${message.type} message`,
+      message.round,
+      message.sender,
+    );
+
+    this.state.commitments.push(commitment);
+
+    this.emitEvent("commitment.detected", {
+      candidate,
+      commitment,
+    }, { agents: "all", spectators: true });
+  }
+
+  private detectAttestationFromMessage(message: Message): void {
+    const lower = message.content.toLowerCase();
+    const match = lower.match(/\bcommitment-(\d+)\b/);
+    if (!match) return;
+
+    const commitmentId = `commitment-${match[1]}`;
+    const commitment = this.state.commitments.find((item) => item.id === commitmentId);
+    if (!commitment || !this.canActorAttest(commitment, message.sender)) {
+      return;
+    }
+
+    const parsed = this.parseAttestationMessage(lower);
+    if (!parsed) return;
+
+    const evidenceRefs: string[] = [];
+    const txMatch = message.content.match(/0x[a-fA-F0-9]{8,}/);
+    if (txMatch) {
+      const evidence = this.appendEvidence(
+        commitment,
+        "payout_receipt",
+        txMatch[0],
+        `Message-attached proof ${txMatch[0]}`,
+        message.round,
+        message.sender,
+      );
+      evidenceRefs.push(evidence.id);
+    }
+
+    const attestation = this.createAttestationRecord(
+      commitment,
+      message.sender,
+      parsed.phase,
+      parsed.verdict,
+      message.content.trim().slice(0, 160),
+      evidenceRefs,
+    );
+    if (!attestation) return;
+
+    const trustUpdates = this.resolveSingleCommitment(commitment);
+    this.applyImmediateTrustUpdates(trustUpdates);
+  }
+
+  private createAttestationRecord(
+    commitment: CommitmentRecord,
+    actor: AgentId,
+    phase: "existence" | "fulfillment",
+    verdict: AttestationVerdict,
+    detail: string,
+    evidenceRefs: string[],
+  ): AttestationRecord | null {
+    const alreadyExists = commitment.attestations.some((item) =>
+      item.actor === actor && item.phase === phase,
+    );
+    if (alreadyExists) {
+      return null;
+    }
+
+    const attestation: AttestationRecord = {
+      id: `attestation-${this.attestationCounter++}`,
+      commitmentId: commitment.id,
+      actor,
+      round: this.state.round,
+      phase,
+      verdict,
+      detail,
+      evidenceRefs,
+      weight: this.computeAttestationWeight(commitment, actor),
+      accepted: true,
+    };
+
+    commitment.attestations.push(attestation);
+    this.state.attestations.push(attestation);
+
+    this.emitEvent("commitment.attested", {
+      commitmentId: commitment.id,
+      attestation,
+    }, { agents: "all", spectators: true });
+
+    return attestation;
+  }
+
+  private resolveCommitmentLedger(
+    trustUpdates: TrustUpdate[],
+    resolvedTrades: Array<{ from: AgentId; to: AgentId; round: number }>,
+    sabotageEvents: Array<{ from: AgentId; to: AgentId; round: number }>,
+    crisisContributors: Set<AgentId>,
+  ): void {
+    for (const commitment of this.state.commitments) {
+      if (commitment.resolutionStatus !== "pending") continue;
+
+      if (commitment.type === "resource_transfer") {
+        const matchedTrade = resolvedTrades.find((trade) =>
+          trade.from === commitment.promisor &&
+          commitment.counterparties.includes(trade.to),
+        );
+        if (matchedTrade) {
+          this.appendEvidence(
+            commitment,
+            "trade",
+            `${matchedTrade.from}:${matchedTrade.to}:${matchedTrade.round}`,
+            `Resolved trade between ${matchedTrade.from} and ${matchedTrade.to}`,
+            matchedTrade.round,
+            matchedTrade.from,
+          );
+        }
+      }
+
+      if (commitment.type === "non_attack") {
+        const targetId =
+          commitment.counterparties[0] ??
+          commitment.conditions.find((item) => item.type === "if_no_attack")?.agentId;
+        const sabotage = sabotageEvents.find((item) =>
+          item.from === commitment.promisor && item.to === targetId,
+        );
+        if (sabotage) {
+          this.appendEvidence(
+            commitment,
+            "system",
+            `sabotage:${sabotage.from}:${sabotage.to}:${sabotage.round}`,
+            `${sabotage.from} attacked ${sabotage.to}`,
+            sabotage.round,
+            sabotage.from,
+          );
+        } else if (targetId && commitment.dueByRound !== null && this.state.round >= commitment.dueByRound) {
+          this.appendEvidence(
+            commitment,
+            "absence",
+            `no-sabotage:${commitment.promisor}:${targetId}:${this.state.round}`,
+            `${commitment.promisor} did not attack ${targetId} through round ${this.state.round}`,
+            this.state.round,
+            commitment.promisor,
+          );
+        }
+      }
+
+      if (commitment.type === "crisis_support" && crisisContributors.has(commitment.promisor)) {
+        this.appendEvidence(
+          commitment,
+          "crisis_contribution",
+          `${commitment.promisor}:${this.state.round}`,
+          `${commitment.promisor} contributed to the active crisis`,
+          this.state.round,
+          commitment.promisor,
+        );
+      }
+
+      trustUpdates.push(...this.resolveSingleCommitment(commitment));
+    }
+  }
+
+  private resolveSingleCommitment(commitment: CommitmentRecord): TrustUpdate[] {
+    if (commitment.resolutionStatus !== "pending") {
+      return [];
+    }
+
+    const trustUpdates: TrustUpdate[] = [];
+    const existenceWeight = commitment.attestations
+      .filter((item) => item.phase === "existence" && item.verdict === "confirm" && item.accepted)
+      .reduce((sum, item) => sum + item.weight, 0);
+    if (existenceWeight <= 0) {
+      return [];
+    }
+
+    const objectiveStatus = this.getObjectiveResolutionStatus(commitment);
+    const fulfillWeight = commitment.attestations
+      .filter((item) => item.phase === "fulfillment" && ["fulfill", "receive"].includes(item.verdict) && item.accepted)
+      .reduce((sum, item) => sum + item.weight, 0);
+    const breachWeight = commitment.attestations
+      .filter((item) => item.phase === "fulfillment" && item.verdict === "breach" && item.accepted)
+      .reduce((sum, item) => sum + item.weight, 0);
+    const contestWeight = commitment.attestations
+      .filter((item) => item.phase === "fulfillment" && item.verdict === "contest" && item.accepted)
+      .reduce((sum, item) => sum + item.weight, 0);
+
+    let nextStatus: ResolutionStatus | null = null;
+    if (objectiveStatus === "non_triggered") {
+      nextStatus = "non_triggered";
+    } else if (objectiveStatus === "fulfilled") {
+      nextStatus = contestWeight > 0.75 ? "contested" : "fulfilled";
+    } else if (objectiveStatus === "breached") {
+      nextStatus = contestWeight > breachWeight ? "contested" : "breached";
+    } else if (fulfillWeight > 0 && breachWeight > 0 && Math.abs(fulfillWeight - breachWeight) < 0.35) {
+      nextStatus = "contested";
+    } else if (fulfillWeight >= 1.2) {
+      nextStatus = "fulfilled";
+    } else if (breachWeight >= 1.2) {
+      nextStatus = "breached";
+    } else if (
+      commitment.dueByRound !== null &&
+      this.state.round > commitment.dueByRound &&
+      breachWeight > 0
+    ) {
+      nextStatus = "breached";
+    }
+
+    if (!nextStatus) {
+      return [];
+    }
+
+    commitment.resolutionStatus = nextStatus;
+    commitment.resolvedRound = this.state.round;
+    commitment.contested = nextStatus === "contested";
+
+    if (nextStatus === "contested") {
+      const claim: ContestedClaim = {
+        id: `contested-${this.contestedCounter++}`,
+        commitmentId: commitment.id,
+        actor: commitment.promisor,
+        round: this.state.round,
+        reason: "Conflicting attestations or insufficient proof",
+        evidenceRefs: commitment.evidence.map((item) => item.id),
+      };
+      this.state.contestedClaims.push(claim);
+    }
+
+    if (nextStatus === "fulfilled") {
+      for (const counterparty of commitment.counterparties) {
         trustUpdates.push({
-          from: promise.to,
-          to: promise.from,
-          delta: 0.1,
-          reason: "kept_promise",
+          from: counterparty,
+          to: commitment.promisor,
+          delta: 0.18,
+          reason: "attested_commitment_fulfilled",
+        });
+      }
+    } else if (nextStatus === "breached") {
+      const reporters = commitment.counterparties.length > 0
+        ? commitment.counterparties
+        : this.state.players.filter((id) => id !== commitment.promisor);
+      for (const reporter of reporters) {
+        trustUpdates.push({
+          from: reporter,
+          to: commitment.promisor,
+          delta: -0.22,
+          reason: "attested_commitment_breached",
         });
       }
     }
+
+    this.emitEvent("commitment.resolved", {
+      commitmentId: commitment.id,
+      status: commitment.resolutionStatus,
+      summary: commitment.summary,
+      evidence: commitment.evidence,
+      attestations: commitment.attestations,
+    }, { agents: "all", spectators: true });
+
+    return trustUpdates;
   }
 
-  /**
-   * Mark trade promises as broken when a promised trade doesn't happen.
-   */
-  private breakTradePromises(offerer: AgentId, nonReciprocator: AgentId, trustUpdates: TrustUpdate[]): void {
-    for (const promise of this.promises) {
-      if (promise.fulfilled !== null) continue;
-      if (promise.type !== "trade") continue;
-      // If the non-reciprocator promised to trade with the offerer
-      if (promise.from === nonReciprocator && promise.to === offerer) {
-        promise.fulfilled = false;
-        promise.detectedInRound = this.state.round;
-        trustUpdates.push({
-          from: offerer,
-          to: nonReciprocator,
-          delta: -0.3,
-          reason: "broke_promise",
-        });
+  private getObjectiveResolutionStatus(commitment: CommitmentRecord): ResolutionStatus | null {
+    const hasTradeEvidence = commitment.evidence.some((item) => item.type === "trade");
+    const hasPayoutReceipt = commitment.evidence.some((item) => item.type === "payout_receipt");
+    const hasAbsenceEvidence = commitment.evidence.some((item) => item.type === "absence");
+    const hasSystemBreach = commitment.evidence.some((item) =>
+      item.type === "system" && item.summary.toLowerCase().includes("attacked"),
+    );
+    const hasCrisisContribution = commitment.evidence.some((item) => item.type === "crisis_contribution");
+
+    if (commitment.type === "resource_transfer" && hasTradeEvidence) {
+      return "fulfilled";
+    }
+    if (commitment.type === "non_attack" && hasSystemBreach) {
+      return "breached";
+    }
+    if (commitment.type === "non_attack" && hasAbsenceEvidence) {
+      return "fulfilled";
+    }
+    if (commitment.type === "crisis_support" && hasCrisisContribution) {
+      return "fulfilled";
+    }
+    if (commitment.type === "prize_share") {
+      if (hasPayoutReceipt) return "fulfilled";
+      const conditionalWin = commitment.conditions.find((item) => item.type === "if_i_win");
+      if (conditionalWin && this.state.winner && this.state.winner !== commitment.promisor) {
+        this.appendEvidence(
+          commitment,
+          "winner",
+          this.state.winner,
+          `${commitment.promisor} did not win the game`,
+          this.state.round,
+          this.state.winner,
+        );
+        return "non_triggered";
       }
+    }
+
+    return null;
+  }
+
+  private finalizePostGameCommitments(): void {
+    if (!this.state.winner) return;
+    const trustUpdates: TrustUpdate[] = [];
+    for (const commitment of this.state.commitments) {
+      if (commitment.resolutionStatus === "pending") {
+        trustUpdates.push(...this.resolveSingleCommitment(commitment));
+      }
+    }
+    this.applyImmediateTrustUpdates(trustUpdates);
+  }
+
+  private applyImmediateTrustUpdates(trustUpdates: TrustUpdate[]): void {
+    if (trustUpdates.length === 0) return;
+
+    this.trustGraph.applyUpdates(trustUpdates, this.state.gameId);
+    this.trustGraph.tick();
+    this.emitEvent("trust.updated", {
+      updates: trustUpdates,
+      snapshots: this.trustGraph.getAllSnapshots(),
+    }, { agents: "all", spectators: true });
+  }
+
+  private getVisibleCommitments(agentId: AgentId): CommitmentRecord[] {
+    return this.state.commitments.filter((commitment) =>
+      commitment.visibility === "public" ||
+      commitment.promisor === agentId ||
+      commitment.counterparties.includes(agentId),
+    );
+  }
+
+  private getVisibleAttestations(agentId: AgentId): AttestationRecord[] {
+    const visibleIds = new Set(this.getVisibleCommitments(agentId).map((item) => item.id));
+    return this.state.attestations.filter((attestation) =>
+      visibleIds.has(attestation.commitmentId) || attestation.actor === agentId,
+    );
+  }
+
+  private canActorAttest(commitment: CommitmentRecord, actor: AgentId): boolean {
+    if (actor === commitment.promisor) return true;
+    if (commitment.counterparties.includes(actor)) return true;
+    return commitment.visibility === "public" && commitment.counterparties.length === 0;
+  }
+
+  private classifyCommitmentType(lower: string): CommitmentRecord["type"] | null {
+    if (/(split|share).*(prize|pot|winnings)/.test(lower)) return "prize_share";
+    if (/(don't attack|do not attack|won't attack|will not attack|non-aggression)/.test(lower)) return "non_attack";
+    if (/(don't build|do not build|won't build|will not build)/.test(lower)) return "non_build";
+    if (/(contribute|help with crisis|pitch in|donate)/.test(lower) && this.state.activeCrisis) return "crisis_support";
+    if (/(give you|send you|trade|deal|offer|exchange|swap)/.test(lower)) return "resource_transfer";
+    if (/(alliance|ally|team up|partner|pact|work together)/.test(lower)) return "alliance";
+    return null;
+  }
+
+  private estimateCommitmentConfidence(type: CommitmentRecord["type"], lower: string): number {
+    const hasDirectPromise = /\b(i will|i'll|i promise|we will|we'll)\b/.test(lower);
+    const hasConditional = /\bif\b/.test(lower);
+    let base = hasDirectPromise ? 0.82 : 0.58;
+    if (hasConditional) base += 0.08;
+    if (type === "prize_share") base += 0.05;
+    return Math.min(0.99, base);
+  }
+
+  private extractCommitmentConditions(lower: string, message: Message): CommitmentCondition[] {
+    const conditions: CommitmentCondition[] = [];
+
+    if (/\bif i win\b/.test(lower) || /\bif we win\b/.test(lower)) {
+      conditions.push({ type: "if_i_win", summary: "Only applies if the promisor wins" });
+    }
+    if (message.recipient !== "broadcast" && /\bif you don't attack me\b|\bif you do not attack me\b/.test(lower)) {
+      conditions.push({
+        type: "if_no_attack",
+        summary: `Only applies if ${message.recipient} does not attack ${message.sender}`,
+        agentId: message.recipient as AgentId,
+      });
+    }
+    if (message.recipient !== "broadcast" && /\bif you give me\b|\bif you send me\b|\bif you trade me\b/.test(lower)) {
+      conditions.push({
+        type: "if_resource_transfer",
+        summary: `Only applies if ${message.recipient} transfers resources`,
+        agentId: message.recipient as AgentId,
+      });
+    }
+    if (/\bnext round\b/.test(lower)) {
+      conditions.push({
+        type: "by_round",
+        summary: "Due next round",
+        round: this.state.round + 1,
+      });
+    }
+    if (this.state.activeCrisis && /(contribute|help with crisis|pitch in|donate)/.test(lower)) {
+      conditions.push({
+        type: "if_crisis_contribution",
+        summary: `Must contribute while ${this.state.activeCrisis.type} is active`,
+      });
+    }
+    if (conditions.length === 0) {
+      conditions.push({ type: "manual", summary: "Inferred from dialogue" });
+    }
+
+    return conditions;
+  }
+
+  private extractPayoutShareBps(lower: string): number | null {
+    const match = lower.match(/(\d+)\s*%/);
+    if (!match) return null;
+    const pct = parseInt(match[1], 10);
+    if (Number.isNaN(pct)) return null;
+    return Math.max(0, Math.min(10000, pct * 100));
+  }
+
+  private inferDueRound(type: CommitmentRecord["type"], conditions: CommitmentCondition[]): number | null {
+    const explicitRound = conditions.find((item) => item.type === "by_round")?.round;
+    if (explicitRound !== undefined) return explicitRound;
+
+    if (type === "resource_transfer" || type === "non_attack" || type === "crisis_support") {
+      return this.state.round + 1;
+    }
+    if (type === "alliance" || type === "non_build") {
+      return this.state.round + 2;
+    }
+
+    return null;
+  }
+
+  private parseAttestationMessage(lower: string): { phase: "existence" | "fulfillment"; verdict: AttestationVerdict } | null {
+    if (/(attest|confirm|acknowledge).*(exists|promise|commitment)/.test(lower)) {
+      return { phase: "existence", verdict: "confirm" };
+    }
+    if (/(fulfilled|kept|honored|paid|delivered)/.test(lower)) {
+      return { phase: "fulfillment", verdict: "fulfill" };
+    }
+    if (/\breceived\b/.test(lower)) {
+      return { phase: "fulfillment", verdict: "receive" };
+    }
+    if (/(betrayed|broke|defaulted|did not pay|didn't pay|failed to honor)/.test(lower)) {
+      return { phase: "fulfillment", verdict: "breach" };
+    }
+    if (/(did not trigger|didn't trigger|i did not win|i didn't win|no payout due)/.test(lower)) {
+      return { phase: "fulfillment", verdict: "non_trigger" };
+    }
+    if (/(contest|dispute|disagree)/.test(lower)) {
+      return { phase: "fulfillment", verdict: "contest" };
+    }
+    return null;
+  }
+
+  private computeAttestationWeight(commitment: CommitmentRecord, actor: AgentId): number {
+    const relevance =
+      actor === commitment.promisor
+        ? 1
+        : commitment.counterparties.includes(actor)
+          ? 0.95
+          : 0.45;
+    const reliability = 0.5 + this.trustGraph.getGlobalScore(actor) * 0.5;
+    return Math.round(relevance * reliability * 100) / 100;
+  }
+
+  private appendEvidence(
+    commitment: CommitmentRecord,
+    type: EvidenceRef["type"],
+    ref: string,
+    summary: string,
+    round: number,
+    actorId?: AgentId,
+  ): EvidenceRef {
+    const existing = commitment.evidence.find((item) => item.type === type && item.ref === ref);
+    if (existing) return existing;
+
+    const evidence: EvidenceRef = {
+      id: `evidence-${this.evidenceCounter++}`,
+      type,
+      ref,
+      summary,
+      round,
+      actorId,
+    };
+    commitment.evidence.push(evidence);
+    return evidence;
+  }
+
+  private recordBehaviorTag(
+    actor: AgentId,
+    kind: BehaviorTag["kind"],
+    relatedAgentId: AgentId | undefined,
+    description: string,
+    severity: BehaviorTag["severity"],
+    trustDeltaHint?: number,
+  ): BehaviorTag {
+    const tag: BehaviorTag = {
+      id: `behavior-${this.behaviorCounter++}`,
+      round: this.state.round,
+      actor,
+      kind,
+      severity,
+      description,
+      relatedAgentId,
+      trustDeltaHint,
+    };
+    this.state.behaviorTags.push(tag);
+    this.emitEvent("behavior.tagged", tag, { agents: "all", spectators: true });
+    return tag;
+  }
+
+  private refreshCommonsHealth(): void {
+    const totalRelevantHexes = Array.from(this.state.hexGrid.values())
+      .filter((tile) => tile.terrain !== "nexus").length;
+    const wastelandHexes = Array.from(this.state.hexGrid.values())
+      .filter((tile) => tile.terrain === "wasteland").length;
+    const failedCrises = this.state.crisisHistory.filter((crisis) => !crisis.resolved).length;
+    const sabotageCount = this.state.behaviorTags.filter((tag) => tag.kind === "sabotage").length;
+
+    let score = 100;
+    score -= totalRelevantHexes > 0 ? Math.round((wastelandHexes / totalRelevantHexes) * 60) : 0;
+    score -= failedCrises * 12;
+    score -= sabotageCount * 4;
+    score = Math.max(0, Math.min(100, score));
+
+    const payableFraction = score / 100;
+    const payablePrizePool = this.applyFractionToBigInt(this.state.prizePool, payableFraction);
+    const slashedPrizePool = this.state.prizePool - payablePrizePool;
+    const reasons: string[] = [];
+    if (wastelandHexes > 0) reasons.push(`${wastelandHexes} wasteland hexes`);
+    if (failedCrises > 0) reasons.push(`${failedCrises} failed crises`);
+    if (sabotageCount > 0) reasons.push(`${sabotageCount} sabotage incidents`);
+    if (reasons.length === 0) reasons.push("Commons stable");
+
+    const snapshot = this.buildCommonsHealthSnapshot(
+      this.state.round,
+      score,
+      reasons,
+      payablePrizePool,
+      slashedPrizePool,
+      this.state.carryoverPrizePool,
+    );
+    this.state.currentCommonsHealth = snapshot;
+
+    const last = this.state.commonsHealthHistory[this.state.commonsHealthHistory.length - 1];
+    if (!last || last.round !== snapshot.round) {
+      this.state.commonsHealthHistory.push(snapshot);
+    } else {
+      this.state.commonsHealthHistory[this.state.commonsHealthHistory.length - 1] = snapshot;
     }
   }
 
-  /**
-   * Check for stale promises (unfulfilled after 3 rounds) and penalize.
-   * Called at end of each round during resolution.
-   */
-  private checkStalePromises(trustUpdates: TrustUpdate[]): void {
-    for (const promise of this.promises) {
-      if (promise.fulfilled !== null) continue;
-      if (this.state.round - promise.round >= 3) {
-        // Promise expired unfulfilled
-        promise.fulfilled = false;
-        promise.detectedInRound = this.state.round;
-        if (promise.to !== "all") {
-          trustUpdates.push({
-            from: promise.to,
-            to: promise.from,
-            delta: -0.2,
-            reason: "stale_promise",
-          });
-        }
-      }
-    }
+  private finalizePrizePool(): void {
+    this.refreshCommonsHealth();
+    const fraction = this.state.currentCommonsHealth.payableFraction;
+    this.state.payablePrizePool = this.applyFractionToBigInt(this.state.prizePool, fraction);
+    this.state.slashedPrizePool = this.state.prizePool - this.state.payablePrizePool;
+    this.state.carryoverPrizePool = this.state.slashedPrizePool;
+    NexusEngine.pendingPrizeCarryoverWei = this.state.carryoverPrizePool;
+
+    this.state.currentCommonsHealth = this.buildCommonsHealthSnapshot(
+      this.state.round,
+      this.state.currentCommonsHealth.score,
+      this.state.currentCommonsHealth.reasons,
+      this.state.payablePrizePool,
+      this.state.slashedPrizePool,
+      this.state.carryoverPrizePool,
+    );
+
+    this.emitEvent("prize.slashed", {
+      prizePoolWei: this.state.prizePool.toString(),
+      payablePrizePoolWei: this.state.payablePrizePool.toString(),
+      slashedPrizePoolWei: this.state.slashedPrizePool.toString(),
+      carryoverPrizePoolWei: this.state.carryoverPrizePool.toString(),
+      commonsHealth: this.state.currentCommonsHealth,
+    }, { agents: "all", spectators: true });
   }
 
-  /**
-   * Scan negotiation messages for trade/alliance/crisis keywords and
-   * automatically create promise records. This is a heuristic — LLM agents
-   * will use natural language, so we look for intent signals.
-   */
-  scanMessagesForPromises(messages: Message[]): void {
-    const tradeKeywords = ["trade", "deal", "offer", "give you", "send you", "exchange", "swap"];
-    const allianceKeywords = ["alliance", "ally", "team up", "partner", "pact", "work together"];
-    const crisisKeywords = ["contribute", "help with crisis", "pitch in", "donate"];
+  private buildCommonsHealthSnapshot(
+    round: number,
+    score: number,
+    reasons: string[],
+    payablePrizePool: bigint,
+    slashedPrizePool: bigint,
+    carryoverPrizePool: bigint,
+  ): CommonsHealthSnapshot {
+    return {
+      round,
+      score,
+      payableFraction: Math.max(0, Math.min(1, score / 100)),
+      reasons,
+      payablePrizePoolWei: payablePrizePool.toString(),
+      slashedPrizePoolWei: slashedPrizePool.toString(),
+      carryoverPrizePoolWei: carryoverPrizePool.toString(),
+    };
+  }
 
-    for (const msg of messages) {
-      if (msg.type !== "private" || msg.recipient === "broadcast") continue;
-      const lower = msg.content.toLowerCase();
+  private applyFractionToBigInt(value: bigint, fraction: number): bigint {
+    const bps = BigInt(Math.max(0, Math.min(10000, Math.round(fraction * 10000))));
+    return value * bps / 10000n;
+  }
 
-      // Check for trade promises
-      if (tradeKeywords.some(kw => lower.includes(kw))) {
-        // Don't duplicate if we already have a pending promise between these two this round
-        const existing = this.promises.find(p =>
-          p.from === msg.sender && p.to === msg.recipient &&
-          p.type === "trade" && p.fulfilled === null &&
-          p.round === this.state.round
-        );
-        if (!existing) {
-          this.recordTradePromise(msg.sender, msg.recipient as AgentId, msg.content.slice(0, 100));
-        }
-      }
-
-      // Check for alliance promises
-      if (allianceKeywords.some(kw => lower.includes(kw))) {
-        const existing = this.promises.find(p =>
-          p.from === msg.sender && p.to === msg.recipient &&
-          p.type === "alliance" && p.fulfilled === null
-        );
-        if (!existing) {
-          this.recordAlliancePromise(msg.sender, msg.recipient as AgentId, msg.content.slice(0, 100));
-        }
-      }
-    }
-
-    // Check for crisis promises in public messages
-    for (const msg of messages) {
-      if (msg.type !== "public") continue;
-      const lower = msg.content.toLowerCase();
-      if (crisisKeywords.some(kw => lower.includes(kw)) && this.state.activeCrisis) {
-        const existing = this.promises.find(p =>
-          p.from === msg.sender && p.type === "crisis" && p.fulfilled === null
-        );
-        if (!existing) {
-          this.recordCrisisPromise(msg.sender, msg.content.slice(0, 100));
-        }
-      }
-    }
+  private static takePrizeCarryover(): bigint {
+    const carryover = NexusEngine.pendingPrizeCarryoverWei;
+    NexusEngine.pendingPrizeCarryoverWei = 0n;
+    return carryover;
   }
 
   private getScarcestResource(resources: ResourceInventory): ResourceType {

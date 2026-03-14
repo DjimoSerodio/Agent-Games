@@ -199,7 +199,12 @@ export type EventType =
   | "agent.registered"
   | "agent.joined"
   | "crisis.triggered"
-  | "crisis.resolved";
+  | "crisis.resolved"
+  | "commitment.detected"
+  | "commitment.attested"
+  | "commitment.resolved"
+  | "behavior.tagged"
+  | "prize.slashed";
 
 export interface ArenaEvent {
   type: EventType;
