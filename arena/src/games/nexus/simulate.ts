@@ -1,5 +1,5 @@
 /**
- * Nexus Game Simulation
+ * Comedy of the Commons Simulation
  *
  * Run a complete game with simple AI agents for testing and demonstration.
  * Usage: npx tsx src/games/nexus/simulate.ts
@@ -17,8 +17,8 @@ import { SimpleAgent, AgentStrategy } from "../../agents/simple-agent.js";
 // ============================================================
 
 const GAME_CONFIG: GameConfig = {
-  id: `nexus_${uuid().slice(0, 8)}`,
-  type: "nexus",
+  id: `comedy_${uuid().slice(0, 8)}`,
+  type: "comedy_commons",
   maxPlayers: 4,
   minPlayers: 4,
   maxRounds: 25, // Hidden from agents
@@ -45,8 +45,8 @@ const AGENT_STRATEGIES: { name: string; strategy: AgentStrategy }[] = [
 
 async function runSimulation() {
   console.log("╔══════════════════════════════════════════════════╗");
-  console.log("║          NEXUS: Coordination Olympiad            ║");
-  console.log("║              Game Simulation                     ║");
+  console.log("║      COMEDY OF THE COMMONS: WORLD SIM            ║");
+  console.log("║         Coordination Olympiad Prototype          ║");
   console.log("╚══════════════════════════════════════════════════╝");
   console.log();
 

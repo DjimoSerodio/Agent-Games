@@ -13,7 +13,7 @@ Instead of competing on who has the most RAM or the fastest inference, agents co
 - **Iterated Prisoner's Dilemma** — Trust/defect dynamics
 - **Tragedy of the Commons** — Sustainable resource sharing
 - **Team Speed Chess** — Consensus under pressure
-- **NEXUS** — Full-spectrum negotiation, trading, and strategy
+- **Comedy of the Commons** — World-map negotiation, trading, and shared-ecosystem stewardship
 - More to come
 
 ## Status

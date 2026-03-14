@@ -17,7 +17,12 @@ import {
   RoundResult,
   MessageType,
 } from "../core/types.js";
-import { NexusAgentView, NexusAction, ResourceType } from "../games/nexus/types.js";
+import {
+  NexusAgentView,
+  NexusAction,
+  ResourceType,
+  RESOURCE_NAMES,
+} from "../games/nexus/types.js";
 
 export type AgentStrategy =
   | "cooperator"   // Always cooperates, trades freely, contributes to crises
@@ -42,8 +47,6 @@ interface AgentMemory {
   incomingOffers: Map<AgentId, TradeOffer>;
   roundCount: number;
 }
-
-const RESOURCE_NAMES: ResourceType[] = ["grain", "timber", "ore", "energy"];
 
 export class SimpleAgent implements GameAgent {
   id: AgentId;
@@ -235,6 +238,8 @@ export class SimpleAgent implements GameAgent {
     if (clean.startsWith("grain")) return "grain";
     if (clean.startsWith("timber")) return "timber";
     if (clean.startsWith("ore")) return "ore";
+    if (clean.startsWith("fish")) return "fish";
+    if (clean.startsWith("water")) return "water";
     if (clean.startsWith("energy")) return "energy";
     return null;
   }
@@ -504,22 +509,22 @@ export class SimpleAgent implements GameAgent {
     const r = view.myResources;
 
     // Upgrade to city if we have settlements and can afford it
-    if (r.grain >= 2 && r.ore >= 3 && view.myStructures.settlements.length > 0) {
+    if (r.grain >= 2 && r.ore >= 2 && r.water >= 1 && view.myStructures.settlements.length > 0) {
       return { type: "build_city", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
     // Build settlement
-    if (r.grain >= 1 && r.timber >= 1 && r.ore >= 1) {
+    if (r.grain >= 1 && r.timber >= 1 && r.ore >= 1 && r.water >= 1) {
       return { type: "build_settlement", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
     // Build beacon (if diplomat or have excess energy)
-    if ((this.strategy === "diplomat" || this.strategy === "cooperator") && r.ore >= 1 && r.energy >= 2) {
+    if ((this.strategy === "diplomat" || this.strategy === "cooperator") && r.ore >= 1 && r.energy >= 1 && r.water >= 1) {
       return { type: "build_beacon", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
     // Build trade post (if builder)
-    if (this.strategy === "builder" && r.timber >= 2 && r.energy >= 1) {
+    if (this.strategy === "builder" && r.timber >= 1 && r.fish >= 1 && r.water >= 1) {
       return { type: "build_trade_post", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
@@ -532,6 +537,8 @@ export class SimpleAgent implements GameAgent {
   }
 
   private decideSecondaryAction(view: NexusAgentView, legalActions: Action[], round: number): NexusAction | null {
+    const accessibleEcosystem = this.getAccessibleEcosystem(view);
+
     if (round <= 3) {
       return { type: "explore", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
@@ -539,6 +546,33 @@ export class SimpleAgent implements GameAgent {
     // Sabotage if defector and can afford it
     if (this.strategy === "defector" && view.myResources.energy >= 1 && view.myResources.ore >= 1) {
       return { type: "sabotage", agentId: this.id, params: {}, round, timestamp: Date.now() };
+    }
+
+    if (accessibleEcosystem) {
+      if (
+        this.strategy !== "defector" &&
+        accessibleEcosystem.health <= Math.max(accessibleEcosystem.collapseThreshold + 8, 34) &&
+        this.canRestore(view)
+      ) {
+        return {
+          type: "restore_ecosystem",
+          agentId: this.id,
+          params: { ecosystemId: accessibleEcosystem.id },
+          round,
+          timestamp: Date.now(),
+        };
+      }
+
+      return {
+        type: "extract_commons",
+        agentId: this.id,
+        params: {
+          ecosystemId: accessibleEcosystem.id,
+          extractionLevel: this.strategy === "defector" ? "high" : this.strategy === "builder" ? "medium" : "low",
+        },
+        round,
+        timestamp: Date.now(),
+      };
     }
 
     // Try a bank trade if we have excess of one resource
@@ -607,6 +641,26 @@ export class SimpleAgent implements GameAgent {
       if (id !== this.id && score > maxScore) { maxScore = score; leader = id; }
     }
     return leader;
+  }
+
+  private getAccessibleEcosystem(view: NexusAgentView) {
+    const controlled = new Set<string>();
+    const structures = [
+      ...view.myStructures.settlements,
+      ...view.myStructures.cities,
+      ...view.myStructures.beacons,
+      ...view.myStructures.tradePosts,
+    ];
+    for (const structure of structures) {
+      if (structure.regionId) controlled.add(structure.regionId);
+    }
+    return view.ecosystemStates
+      .filter((ecosystem) => ecosystem.regionIds.some((regionId) => controlled.has(regionId)))
+      .sort((left, right) => left.health - right.health)[0] || null;
+  }
+
+  private canRestore(view: NexusAgentView): boolean {
+    return (view.myResources.water || 0) >= 1 && (((view.myResources.energy || 0) >= 1) || ((view.myResources.grain || 0) >= 1));
   }
 
   private makeMessage(gameId: string, recipient: string, content: string, type: MessageType): Message {

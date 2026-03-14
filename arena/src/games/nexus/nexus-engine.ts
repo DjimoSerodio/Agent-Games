@@ -34,6 +34,7 @@ import {
   PRODUCTION_WHEEL,
   RESOURCE_CAP,
   EMPTY_INVENTORY,
+  RESOURCE_NAMES,
   CommitmentCandidate,
   CommitmentCondition,
   CommitmentRecord,
@@ -45,15 +46,23 @@ import {
   EvidenceRef,
   PayoutReceipt,
   ResolutionStatus,
+  EcosystemState,
+  EcosystemExtractionRecord,
+  ExtractionLevel,
 } from "./types.js";
 import {
-  generateHexGrid,
-  getStartingPositions,
   hexKey,
   hexNeighbors,
   hexDistance,
 } from "./hex-grid.js";
 import { TrustGraph } from "../../trust/trust-graph.js";
+import {
+  createComedyWorldMap,
+  getRegionByCoord,
+  getRegionById,
+  getStartingPositions as getWorldStartingPositions,
+  projectWorldMapToHexGrid,
+} from "./world-map.js";
 
 export class NexusEngine extends GameEngine<NexusGameState> {
   private static pendingPrizeCarryoverWei = 0n;
@@ -85,7 +94,8 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   // ============================================================
 
   protected createInitialState(config: GameConfig): NexusGameState {
-    const hexGrid = generateHexGrid(config.maxPlayers, Date.now());
+    const worldMap = createComedyWorldMap();
+    const hexGrid = projectWorldMapToHexGrid(worldMap);
     const carryoverPrizePool = NexusEngine.takePrizeCarryover();
 
     // Determine hidden max rounds (20-30, agents don't know exact number)
@@ -108,6 +118,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       isFinished: false,
       winner: null,
       hexGrid,
+      worldMap,
       vertices: [],
       edges: [],
       playerStates: new Map(),
@@ -116,6 +127,27 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       activeCrisis: null,
       crisisHistory: [],
       crisisCooldown: 3, // No crisis in first 3 rounds
+      ecosystems: worldMap.ecosystems.map((ecosystem) => ({
+        id: ecosystem.id,
+        name: ecosystem.name,
+        kind: ecosystem.kind,
+        resource: ecosystem.resource,
+        regionIds: [...ecosystem.regionIds],
+        label: ecosystem.label,
+        health: ecosystem.maxHealth,
+        maxHealth: ecosystem.maxHealth,
+        collapseThreshold: ecosystem.collapseThreshold,
+        flourishThreshold: ecosystem.flourishThreshold,
+        baseRegeneration: ecosystem.baseRegeneration,
+        extractionProfiles: ecosystem.extractionProfiles.map((profile) => ({ ...profile })),
+        lastPressure: 0,
+        lastYield: 0,
+        lastDelta: 0,
+        status: "stable",
+        asset: ecosystem.asset,
+        description: ecosystem.description,
+      })),
+      ecosystemExtractions: [],
       longestRoadHolder: null,
       mostInfluenceHolder: null,
       mostCrisisContribHolder: null,
@@ -141,10 +173,13 @@ export class NexusEngine extends GameEngine<NexusGameState> {
    * Set up player starting positions and resources
    */
   protected override async initializeAgents(): Promise<void> {
-    const startingPositions = getStartingPositions(
-      this.state.hexGrid,
+    const startingPositions = getWorldStartingPositions(
+      this.state.worldMap,
       this.state.players.length,
     );
+
+    this.state.prizePool += BigInt(this.state.players.length) * this.config.entryFeeWei;
+    this.state.payablePrizePool = this.state.prizePool;
 
     // Initialize each player's state
     for (let i = 0; i < this.state.players.length; i++) {
@@ -153,7 +188,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
 
       const playerState: NexusPlayerState = {
         id: agentId,
-        resources: { grain: 2, timber: 2, ore: 1, energy: 0 },
+        resources: { grain: 2, timber: 2, ore: 1, fish: 1, water: 1, energy: 1 },
         influence: 0,
         structures: {
           settlements: [],
@@ -185,10 +220,12 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       }
 
       // Place initial settlement at starting position
+      const startRegion = getRegionByCoord(this.state.worldMap, startPos);
       playerState.structures.settlements.push({
         hexes: [startPos],
         structure: "settlement",
         owner: agentId,
+        regionId: startRegion?.id,
       });
 
       // Register agent in trust graph
@@ -196,6 +233,8 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     }
 
     await super.initializeAgents();
+
+    this.refreshCommonsHealth();
 
     // Emit hex grid data so the frontend can render the actual map
     this.emitHexGridData();
@@ -237,6 +276,12 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       phase: this.state.phase,
       myId: agentId,
       visibleHexes,
+      worldMap: this.state.worldMap,
+      ecosystemStates: this.state.ecosystems.map((ecosystem) => ({
+        ...ecosystem,
+        regionIds: [...ecosystem.regionIds],
+        extractionProfiles: ecosystem.extractionProfiles.map((profile) => ({ ...profile })),
+      })),
       visibleVertices: this.state.vertices,
       visibleEdges: this.state.edges,
       myResources: { ...playerState.resources },
@@ -272,21 +317,21 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     if (r.grain >= 1 && r.timber >= 1) {
       actions.push(this.makeAction("build_road", agentId));
     }
-    if (r.grain >= 1 && r.timber >= 1 && r.ore >= 1) {
+    if (r.grain >= 1 && r.timber >= 1 && r.ore >= 1 && r.water >= 1) {
       actions.push(this.makeAction("build_settlement", agentId));
     }
-    if (r.grain >= 2 && r.ore >= 3 && ps.structures.settlements.length > 0) {
+    if (r.grain >= 2 && r.ore >= 2 && r.water >= 1 && ps.structures.settlements.length > 0) {
       actions.push(this.makeAction("build_city", agentId));
     }
-    if (r.ore >= 1 && r.energy >= 2) {
+    if (r.ore >= 1 && r.energy >= 1 && r.water >= 1) {
       actions.push(this.makeAction("build_beacon", agentId));
     }
-    if (r.timber >= 2 && r.energy >= 1) {
+    if (r.timber >= 1 && r.fish >= 1 && r.water >= 1) {
       actions.push(this.makeAction("build_trade_post", agentId));
     }
 
     // Trade with other players (always available if you have resources)
-    const totalResources = r.grain + r.timber + r.ore + r.energy;
+    const totalResources = this.totalResources(r);
     if (totalResources > 0) {
       for (const otherId of this.state.players) {
         if (otherId !== agentId) {
@@ -297,7 +342,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
 
     // Bank trade (4:1, or 2:1 with trade post)
     const bankRatio = ps.structures.tradePosts.length > 0 ? 2 : 4;
-    for (const resType of ["grain", "timber", "ore", "energy"] as ResourceType[]) {
+    for (const resType of RESOURCE_NAMES) {
       if (r[resType] >= bankRatio) {
         actions.push(this.makeAction("trade_bank", agentId, {
           bankGiveType: resType,
@@ -308,6 +353,19 @@ export class NexusEngine extends GameEngine<NexusGameState> {
 
     // Explore
     actions.push(this.makeAction("explore", agentId));
+
+    const accessibleEcosystems = this.getAccessibleEcosystems(agentId);
+    if (accessibleEcosystems.length > 0) {
+      actions.push(this.makeAction("extract_commons", agentId, {
+        ecosystemId: accessibleEcosystems[0].id,
+        extractionLevel: "medium",
+      }));
+      if (r.water >= 1 || r.energy >= 1 || r.grain >= 1) {
+        actions.push(this.makeAction("restore_ecosystem", agentId, {
+          ecosystemId: accessibleEcosystems[0].id,
+        }));
+      }
+    }
 
     // Sabotage (costs 1 Energy + 1 Ore)
     if (r.energy >= 1 && r.ore >= 1) {
@@ -338,38 +396,37 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       productionNumber: currentNumber,
     }, { agents: "all", spectators: true });
 
-    // Produce resources for matching hexes
+    // Produce resources for matching regions
     for (const [_, tile] of this.state.hexGrid) {
       if (tile.productionNumber !== currentNumber) continue;
       if (tile.terrain === "wasteland") continue;
 
-      const resource = TERRAIN_RESOURCE[tile.terrain];
-      if (!resource && tile.terrain !== "nexus") continue;
+      const region = tile.regionId
+        ? getRegionById(this.state.worldMap, tile.regionId)
+        : getRegionByCoord(this.state.worldMap, tile.coord);
+      const resource = region?.primaryResource ?? tile.primaryResource ?? TERRAIN_RESOURCE[tile.terrain];
+      if (!resource) continue;
 
       // Find players with structures adjacent to this hex
       for (const [agentId, ps] of this.state.playerStates) {
-        // Simplified: each player with settlements near this hex gets resources
-        // In full implementation, check vertex adjacency
         const hasAdjacentStructure = this.hasStructureNearHex(agentId, tile.coord);
         if (!hasAdjacentStructure) continue;
 
-        const totalResources =
-          ps.resources.grain + ps.resources.timber + ps.resources.ore + ps.resources.energy;
+        const totalResources = this.totalResources(ps.resources);
         if (totalResources >= RESOURCE_CAP) continue;
 
-        if (tile.terrain === "nexus") {
-          // Nexus: player chooses (simplified: give the most scarce)
-          const minResource = this.getScarcestResource(ps.resources);
-          ps.resources[minResource]++;
-        } else if (resource) {
-          ps.resources[resource]++;
+        let yieldAmount = 1;
+        if (this.hasCityNearHex(agentId, tile.coord)) {
+          yieldAmount += 1;
+        }
+        if (region) {
+          yieldAmount += this.getRegionProductionModifier(region.id);
+        }
 
-          // Cities produce double
-          if (this.hasCityNearHex(agentId, tile.coord)) {
-            if (totalResources + 1 < RESOURCE_CAP) {
-              ps.resources[resource]++;
-            }
-          }
+        const safeYield = Math.max(0, yieldAmount);
+        for (let index = 0; index < safeYield; index++) {
+          if (this.totalResources(ps.resources) >= RESOURCE_CAP) break;
+          ps.resources[resource] += 1;
         }
       }
     }
@@ -453,6 +510,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       this.resolveCrisis(outcomes, trustUpdates, scoreChanges, crisisContributors);
     }
 
+    this.resolveCommonsCycle(trustUpdates);
     this.resolveCommitmentLedger(trustUpdates, resolvedTrades, sabotageEvents, crisisContributors);
     this.refreshCommonsHealth();
 
@@ -481,7 +539,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     }
 
     // Emit full state update for frontend rendering
-    this.emitStateUpdate(outcomes);
+    this.emitStateUpdate(outcomes, resolvedTrades);
 
     return {
       gameId: this.state.gameId,
@@ -544,11 +602,12 @@ export class NexusEngine extends GameEngine<NexusGameState> {
           return this.failOutcome(action, "No valid location for settlement (distance rule)");
         }
         this.deductResources(ps, cost);
-        ps.vp += STRUCTURE_VP.settlement;
+        const settlementRegion = getRegionByCoord(this.state.worldMap, settlementHex);
         ps.structures.settlements.push({
           hexes: [settlementHex],
           structure: "settlement",
           owner: agentId,
+          regionId: settlementRegion?.id,
         });
         // Reveal hexes around the new settlement
         this.revealHexesAround(agentId, settlementHex);
@@ -566,14 +625,13 @@ export class NexusEngine extends GameEngine<NexusGameState> {
           return this.failOutcome(action, "No settlements to upgrade");
         }
         this.deductResources(ps, cost);
-        // City replaces settlement: net +1 VP (city is 2, settlement was 1)
-        ps.vp += 1;
         // Remove oldest settlement and add a city in its place
         const upgradedSettlement = ps.structures.settlements.shift()!;
         ps.structures.cities.push({
           hexes: upgradedSettlement.hexes,
           structure: "city",
           owner: agentId,
+          regionId: upgradedSettlement.regionId,
         });
         return this.successOutcome(action, "Upgraded settlement to city", [
           { type: "vp_change", target: agentId, params: { amount: 1 } },
@@ -590,12 +648,16 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         // Place road near an existing structure
         const roadHex = this.findStructureHex(agentId);
         if (roadHex) {
-          const neighbors = hexNeighbors(roadHex);
-          const neighborHex = neighbors[Math.floor(Math.random() * neighbors.length)];
+          const neighbors = hexNeighbors(roadHex)
+            .filter((neighbor) => this.state.hexGrid.has(hexKey(neighbor)));
+          const neighborHex = neighbors[Math.floor(Math.random() * neighbors.length)] || roadHex;
+          const fromRegion = getRegionByCoord(this.state.worldMap, roadHex);
+          const toRegion = getRegionByCoord(this.state.worldMap, neighborHex);
           ps.structures.roads.push({
             hexes: [roadHex, neighborHex],
             road: true,
             owner: agentId,
+            regionIds: fromRegion && toRegion ? [fromRegion.id, toRegion.id] : undefined,
           });
         }
         return this.successOutcome(action, "Built a road", []);
@@ -612,11 +674,12 @@ export class NexusEngine extends GameEngine<NexusGameState> {
           return this.failOutcome(action, "No valid location for beacon");
         }
         this.deductResources(ps, cost);
-        ps.vp += STRUCTURE_VP.beacon;
+        const beaconRegion = getRegionByCoord(this.state.worldMap, beaconHex);
         ps.structures.beacons.push({
           hexes: [beaconHex],
           structure: "beacon",
           owner: agentId,
+          regionId: beaconRegion?.id,
         });
         // Beacons reveal a wide area
         for (const neighbor of hexNeighbors(beaconHex)) {
@@ -638,10 +701,12 @@ export class NexusEngine extends GameEngine<NexusGameState> {
           return this.failOutcome(action, "No valid location for trade post");
         }
         this.deductResources(ps, cost);
+        const tradePostRegion = getRegionByCoord(this.state.worldMap, tpHex);
         ps.structures.tradePosts.push({
           hexes: [tpHex],
           structure: "trade_post",
           owner: agentId,
+          regionId: tradePostRegion?.id,
         });
         return this.successOutcome(action, "Built a trade post (2:1 bank trades enabled)", []);
       }
@@ -684,6 +749,84 @@ export class NexusEngine extends GameEngine<NexusGameState> {
           }
         }
         return this.successOutcome(action, `Explored and revealed ${revealed} hexes`, []);
+      }
+
+      case "extract_commons": {
+        const ecosystem = this.chooseAccessibleEcosystem(agentId, action.params.ecosystemId as string | undefined);
+        if (!ecosystem) {
+          return this.failOutcome(action, "No accessible commons ecosystem to extract from");
+        }
+
+        const level = (action.params.extractionLevel as ExtractionLevel | undefined) || "medium";
+        const profile = ecosystem.extractionProfiles.find((item) => item.level === level);
+        if (!profile) {
+          return this.failOutcome(action, "Invalid extraction level");
+        }
+
+        const availableCapacity = Math.max(0, RESOURCE_CAP - this.totalResources(ps.resources));
+        if (availableCapacity <= 0) {
+          return this.failOutcome(action, "Storage is full; cannot extract from the commons");
+        }
+
+        const yieldAmount = Math.min(
+          profile.yield,
+          availableCapacity,
+          Math.max(1, Math.round(profile.yield * this.getEcosystemYieldMultiplier(ecosystem))),
+        );
+        ps.resources[ecosystem.resource] += yieldAmount;
+        this.state.ecosystemExtractions.push({
+          ecosystemId: ecosystem.id,
+          agentId,
+          level,
+          pressure: profile.pressure,
+          yield: yieldAmount,
+          round: this.state.round,
+        });
+
+        if (level === "high") {
+          this.recordBehaviorTag(
+            agentId,
+            "extractive",
+            undefined,
+            `Pushed ${ecosystem.name} at high extraction`,
+            ecosystem.health <= ecosystem.flourishThreshold ? "high" : "medium",
+            -0.12,
+          );
+        }
+
+        return this.successOutcome(
+          action,
+          `Extracted ${yieldAmount} ${ecosystem.resource} from ${ecosystem.name} (${level})`,
+          [],
+        );
+      }
+
+      case "restore_ecosystem": {
+        const ecosystem = this.chooseAccessibleEcosystem(agentId, action.params.ecosystemId as string | undefined);
+        if (!ecosystem) {
+          return this.failOutcome(action, "No accessible ecosystem to restore");
+        }
+
+        const restorationCost = this.getRestorationCost(ecosystem.kind);
+        if (!this.canAfford(ps.resources, restorationCost)) {
+          return this.failOutcome(action, `Insufficient resources to restore ${ecosystem.name}`);
+        }
+
+        this.deductResources(ps, restorationCost);
+        const restored = Math.min(ecosystem.maxHealth - ecosystem.health, 8);
+        ecosystem.health += restored;
+        ecosystem.lastDelta += restored;
+        ecosystem.status = this.getEcosystemStatus(ecosystem);
+        this.recordBehaviorTag(
+          agentId,
+          "stewardship",
+          undefined,
+          `Restored ${ecosystem.name} by ${restored} health`,
+          "medium",
+          0.14,
+        );
+
+        return this.successOutcome(action, `Restored ${ecosystem.name}`, []);
       }
 
       case "sabotage": {
@@ -820,7 +963,15 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         const ps2 = this.state.playerStates.get(a2.agentId)!;
 
         const give1 = a1.params.give as Partial<ResourceInventory> || {};
+        const receive1 = a1.params.receive as Partial<ResourceInventory> || {};
         const give2 = a2.params.give as Partial<ResourceInventory> || {};
+        const receive2 = a2.params.receive as Partial<ResourceInventory> || {};
+
+        if (!this.resourceBagsEqual(give1, receive2) || !this.resourceBagsEqual(give2, receive1)) {
+          outcomes.push(this.failOutcome(a1, `Trade with ${a2.agentId} failed - terms did not match`));
+          outcomes.push(this.failOutcome(a2, `Trade with ${a1.agentId} failed - terms did not match`));
+          continue;
+        }
 
         // Validate both sides can afford what they're giving
         let valid = true;
@@ -951,6 +1102,8 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       totalContrib.grain += contrib.grain;
       totalContrib.timber += contrib.timber;
       totalContrib.ore += contrib.ore;
+      totalContrib.fish += contrib.fish;
+      totalContrib.water += contrib.water;
       totalContrib.energy += contrib.energy;
     }
 
@@ -959,20 +1112,21 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       totalContrib.grain >= threshold.grain &&
       totalContrib.timber >= threshold.timber &&
       totalContrib.ore >= threshold.ore &&
+      totalContrib.fish >= threshold.fish &&
+      totalContrib.water >= threshold.water &&
       totalContrib.energy >= threshold.energy;
 
     crisis.resolved = resolved;
 
     if (resolved) {
       // Reward contributors
-      for (const [agentId, _] of Object.entries(crisis.contributions)) {
-        crisisContributors.add(agentId);
-        const ps = this.state.playerStates.get(agentId);
-        if (ps) {
-          ps.vp += crisis.rewardVP;
-          ps.influence += crisis.rewardInfluence;
-          scoreChanges[agentId] = (scoreChanges[agentId] || 0) + crisis.rewardVP;
-          this.recordBehaviorTag(
+        for (const [agentId, _] of Object.entries(crisis.contributions)) {
+          crisisContributors.add(agentId);
+          const ps = this.state.playerStates.get(agentId);
+          if (ps) {
+            ps.influence += crisis.rewardInfluence;
+            scoreChanges[agentId] = (scoreChanges[agentId] || 0) + crisis.rewardVP;
+            this.recordBehaviorTag(
             agentId,
             "crisis_contributor",
             undefined,
@@ -1068,7 +1222,10 @@ export class NexusEngine extends GameEngine<NexusGameState> {
    * Emit full per-agent state update for frontend rendering.
    * Called after each resolution phase.
    */
-  private emitStateUpdate(outcomes: ActionOutcome[]): void {
+  private emitStateUpdate(
+    outcomes: ActionOutcome[],
+    resolvedTrades: Array<{ from: AgentId; to: AgentId; round: number }>,
+  ): void {
     const agentStates: Record<string, {
       resources: ResourceInventory;
       vp: number;
@@ -1084,25 +1241,32 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       structureLocations: Array<{
         type: string;
         hexes: Array<{ q: number; r: number }>;
+        regionId?: string;
+        regionIds?: string[];
       }>;
     }> = {};
 
     for (const [agentId, ps] of this.state.playerStates) {
-      const structureLocations: Array<{ type: string; hexes: Array<{ q: number; r: number }> }> = [];
+      const structureLocations: Array<{
+        type: string;
+        hexes: Array<{ q: number; r: number }>;
+        regionId?: string;
+        regionIds?: string[];
+      }> = [];
       for (const s of ps.structures.settlements) {
-        structureLocations.push({ type: "settlement", hexes: s.hexes });
+        structureLocations.push({ type: "settlement", hexes: s.hexes, regionId: s.regionId });
       }
       for (const c of ps.structures.cities) {
-        structureLocations.push({ type: "city", hexes: c.hexes });
+        structureLocations.push({ type: "city", hexes: c.hexes, regionId: c.regionId });
       }
       for (const b of ps.structures.beacons) {
-        structureLocations.push({ type: "beacon", hexes: b.hexes });
+        structureLocations.push({ type: "beacon", hexes: b.hexes, regionId: b.regionId });
       }
       for (const tp of ps.structures.tradePosts) {
-        structureLocations.push({ type: "trade_post", hexes: tp.hexes });
+        structureLocations.push({ type: "trade_post", hexes: tp.hexes, regionId: tp.regionId });
       }
       for (const r of ps.structures.roads) {
-        structureLocations.push({ type: "road", hexes: r.hexes });
+        structureLocations.push({ type: "road", hexes: r.hexes, regionIds: r.regionIds ? [...r.regionIds] : undefined });
       }
 
       agentStates[agentId] = {
@@ -1133,6 +1297,23 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       slashedPrizePool: this.state.slashedPrizePool.toString(),
       carryoverPrizePool: this.state.carryoverPrizePool.toString(),
       commonsHealth: this.state.currentCommonsHealth,
+      ecosystems: this.state.ecosystems.map((ecosystem) => ({
+        id: ecosystem.id,
+        name: ecosystem.name,
+        kind: ecosystem.kind,
+        resource: ecosystem.resource,
+        health: ecosystem.health,
+        maxHealth: ecosystem.maxHealth,
+        status: ecosystem.status,
+        regionIds: ecosystem.regionIds,
+        label: ecosystem.label,
+        lastPressure: ecosystem.lastPressure,
+        lastYield: ecosystem.lastYield,
+        lastDelta: ecosystem.lastDelta,
+        flourishThreshold: ecosystem.flourishThreshold,
+        collapseThreshold: ecosystem.collapseThreshold,
+        asset: ecosystem.asset,
+      })),
       commitments: this.state.commitments.map((commitment) => ({
         id: commitment.id,
         type: commitment.type,
@@ -1155,6 +1336,8 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         longestRoad: this.state.longestRoadHolder,
         mostInfluence: this.state.mostInfluenceHolder,
       },
+      recentTrades: resolvedTrades,
+      recentExtractions: this.state.ecosystemExtractions.filter((entry) => entry.round === this.state.round),
       // Include summarized outcomes for the frontend comms feed
       actionSummary: outcomes
         .filter(o => o.success)
@@ -1176,6 +1359,13 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       terrain: string;
       productionNumber: number;
       revealed: boolean;
+      regionId?: string;
+      regionName?: string;
+      biome?: string;
+      primaryResource?: string;
+      center?: { x: number; y: number };
+      polygon?: Array<{ x: number; y: number }>;
+      ecosystemIds?: string[];
     }> = [];
 
     for (const [_, tile] of this.state.hexGrid) {
@@ -1185,23 +1375,186 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         terrain: tile.terrain,
         productionNumber: tile.productionNumber,
         revealed: tile.revealed,
+        regionId: tile.regionId,
+        regionName: tile.regionName,
+        biome: tile.biome,
+        primaryResource: tile.primaryResource,
+        center: tile.center,
+        polygon: tile.polygon,
+        ecosystemIds: tile.ecosystemIds,
       });
     }
 
     // Collect agent starting positions
     const agentPositions: Record<string, { q: number; r: number }> = {};
+    const agentRegions: Record<string, string> = {};
     for (const [agentId, ps] of this.state.playerStates) {
       if (ps.structures.settlements.length > 0) {
         const startHex = ps.structures.settlements[0].hexes[0];
         agentPositions[agentId] = { q: startHex.q, r: startHex.r };
+        const startRegion = getRegionByCoord(this.state.worldMap, startHex);
+        if (startRegion) {
+          agentRegions[agentId] = startRegion.id;
+        }
       }
     }
 
     this.emitEvent("game.map_data", {
       hexes,
       agentPositions,
+      agentRegions,
       productionWheel: this.state.productionWheel,
+      worldMap: {
+        id: this.state.worldMap.id,
+        name: this.state.worldMap.name,
+        assets: this.state.worldMap.assets,
+        regions: this.state.worldMap.regions,
+        ecosystems: this.state.ecosystems.map((ecosystem) => ({
+          id: ecosystem.id,
+          name: ecosystem.name,
+          kind: ecosystem.kind,
+          resource: ecosystem.resource,
+          regionIds: ecosystem.regionIds,
+          label: ecosystem.label,
+          health: ecosystem.health,
+          maxHealth: ecosystem.maxHealth,
+          status: ecosystem.status,
+          asset: ecosystem.asset,
+        })),
+      },
     }, { agents: "all", spectators: true });
+  }
+
+  private getControlledRegionIds(agentId: AgentId): string[] {
+    const ps = this.state.playerStates.get(agentId);
+    if (!ps) return [];
+
+    const regionIds = new Set<string>();
+    const structures = [
+      ...ps.structures.settlements,
+      ...ps.structures.cities,
+      ...ps.structures.beacons,
+      ...ps.structures.tradePosts,
+    ];
+    for (const structure of structures) {
+      if (structure.regionId) {
+        regionIds.add(structure.regionId);
+        continue;
+      }
+      const region = structure.hexes[0]
+        ? getRegionByCoord(this.state.worldMap, structure.hexes[0])
+        : undefined;
+      if (region) {
+        regionIds.add(region.id);
+      }
+    }
+    return [...regionIds];
+  }
+
+  private getAccessibleEcosystems(agentId: AgentId): EcosystemState[] {
+    const controlled = new Set(this.getControlledRegionIds(agentId));
+    return this.state.ecosystems
+      .filter((ecosystem) => ecosystem.regionIds.some((regionId) => controlled.has(regionId)))
+      .sort((left, right) => left.health - right.health);
+  }
+
+  private chooseAccessibleEcosystem(agentId: AgentId, ecosystemId?: string): EcosystemState | null {
+    const accessible = this.getAccessibleEcosystems(agentId);
+    if (accessible.length === 0) return null;
+    if (ecosystemId) {
+      return accessible.find((ecosystem) => ecosystem.id === ecosystemId) || null;
+    }
+    return accessible[0] || null;
+  }
+
+  private getRegionProductionModifier(regionId: string): number {
+    let modifier = 0;
+    for (const ecosystem of this.state.ecosystems) {
+      if (!ecosystem.regionIds.includes(regionId)) continue;
+      if (ecosystem.status === "collapsed") modifier -= 1;
+      else if (ecosystem.status === "strained") modifier -= 0;
+      else if (ecosystem.status === "flourishing") modifier += 1;
+    }
+    return modifier;
+  }
+
+  private getEcosystemYieldMultiplier(ecosystem: EcosystemState): number {
+    if (ecosystem.status === "flourishing") return 1.35;
+    if (ecosystem.status === "collapsed") return 0.45;
+    if (ecosystem.status === "strained") return 0.8;
+    return 1;
+  }
+
+  private getRestorationCost(kind: EcosystemState["kind"]): ResourceInventory {
+    switch (kind) {
+      case "fishery":
+        return { grain: 0, timber: 0, ore: 0, fish: 0, water: 1, energy: 1 };
+      case "forest":
+        return { grain: 1, timber: 0, ore: 0, fish: 0, water: 1, energy: 0 };
+      case "aquifer":
+        return { grain: 0, timber: 0, ore: 0, fish: 0, water: 1, energy: 1 };
+      case "wetland":
+        return { grain: 1, timber: 0, ore: 0, fish: 0, water: 1, energy: 0 };
+    }
+  }
+
+  private getEcosystemStatus(ecosystem: EcosystemState): EcosystemState["status"] {
+    if (ecosystem.health <= ecosystem.collapseThreshold) return "collapsed";
+    if (ecosystem.health >= ecosystem.flourishThreshold) return "flourishing";
+    if (ecosystem.health <= Math.round(ecosystem.flourishThreshold * 0.72)) return "strained";
+    return "stable";
+  }
+
+  private resolveCommonsCycle(trustUpdates: TrustUpdate[]): void {
+    const roundExtractions = this.state.ecosystemExtractions.filter((entry) => entry.round === this.state.round);
+
+    for (const ecosystem of this.state.ecosystems) {
+      const extractions = roundExtractions.filter((entry) => entry.ecosystemId === ecosystem.id);
+      const totalPressure = extractions.reduce((sum, entry) => sum + entry.pressure, 0);
+      const totalYield = extractions.reduce((sum, entry) => sum + entry.yield, 0);
+      const regenBonus = totalPressure === 0 && ecosystem.health < ecosystem.maxHealth ? 1 : 0;
+      const delta = ecosystem.baseRegeneration + regenBonus - totalPressure;
+
+      ecosystem.lastPressure = totalPressure;
+      ecosystem.lastYield = totalYield;
+      ecosystem.lastDelta = delta;
+      ecosystem.health = Math.max(0, Math.min(ecosystem.maxHealth, ecosystem.health + delta));
+      ecosystem.status = this.getEcosystemStatus(ecosystem);
+
+      if (ecosystem.status === "collapsed" && extractions.length > 0) {
+        for (const extraction of extractions) {
+          this.recordBehaviorTag(
+            extraction.agentId,
+            "extractive",
+            undefined,
+            `${ecosystem.name} collapsed under extraction pressure`,
+            "high",
+            -0.18,
+          );
+          for (const otherId of this.state.players) {
+            if (otherId === extraction.agentId) continue;
+            trustUpdates.push({
+              from: otherId,
+              to: extraction.agentId,
+              delta: -0.08,
+              reason: "commons_collapsed",
+            });
+          }
+        }
+      } else if (ecosystem.status === "flourishing" && totalPressure > 0 && totalPressure <= ecosystem.baseRegeneration) {
+        for (const extraction of extractions) {
+          if (extraction.level === "high") continue;
+          this.recordBehaviorTag(
+            extraction.agentId,
+            "stewardship",
+            undefined,
+            `${ecosystem.name} remained healthy under restrained extraction`,
+            "low",
+            0.08,
+          );
+        }
+      }
+    }
   }
 
   // ============================================================
@@ -1268,19 +1621,24 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   }
 
   private canAfford(resources: ResourceInventory, cost: ResourceInventory): boolean {
-    return (
-      resources.grain >= cost.grain &&
-      resources.timber >= cost.timber &&
-      resources.ore >= cost.ore &&
-      resources.energy >= cost.energy
-    );
+    return RESOURCE_NAMES.every((resource) => resources[resource] >= cost[resource]);
   }
 
   private deductResources(ps: NexusPlayerState, cost: ResourceInventory): void {
-    ps.resources.grain -= cost.grain;
-    ps.resources.timber -= cost.timber;
-    ps.resources.ore -= cost.ore;
-    ps.resources.energy -= cost.energy;
+    for (const resource of RESOURCE_NAMES) {
+      ps.resources[resource] -= cost[resource];
+    }
+  }
+
+  private totalResources(resources: ResourceInventory): number {
+    return RESOURCE_NAMES.reduce((sum, resource) => sum + resources[resource], 0);
+  }
+
+  private resourceBagsEqual(
+    left: Partial<ResourceInventory>,
+    right: Partial<ResourceInventory>,
+  ): boolean {
+    return RESOURCE_NAMES.every((resource) => (left[resource] || 0) === (right[resource] || 0));
   }
 
   private hasStructureNearHex(agentId: AgentId, coord: import("./types.js").HexCoord): boolean {
@@ -1485,11 +1843,12 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   private applyCrisisPenalty(crisis: CrisisEvent, scoreChanges: Record<AgentId, number>): void {
     switch (crisis.type) {
       case "blight": {
-        // "All Plains hexes skip next production cycle" — mark them as temporarily wasteland
-        // Simplified: all players lose 1 grain
-        for (const [agentId, ps] of this.state.playerStates) {
+        for (const [_agentId, ps] of this.state.playerStates) {
           const lost = Math.min(ps.resources.grain, 2);
           ps.resources.grain -= lost;
+          if (ps.resources.water > 0) {
+            ps.resources.water -= 1;
+          }
         }
         break;
       }
@@ -1504,14 +1863,11 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         break;
       }
       case "famine": {
-        // "Resource cap reduced to 5 for 3 rounds"
-        // Simplified: all players lose excess resources down to cap of 5
-        for (const [agentId, ps] of this.state.playerStates) {
-          const total = ps.resources.grain + ps.resources.timber + ps.resources.ore + ps.resources.energy;
+        for (const [_agentId, ps] of this.state.playerStates) {
+          const total = this.totalResources(ps.resources);
           if (total > 5) {
-            // Remove resources proportionally, starting from most abundant
             let toRemove = total - 5;
-            const types: ResourceType[] = ["grain", "timber", "ore", "energy"];
+            const types: ResourceType[] = [...RESOURCE_NAMES];
             types.sort((a, b) => ps.resources[b] - ps.resources[a]);
             for (const resType of types) {
               const remove = Math.min(ps.resources[resType], toRemove);
@@ -1524,13 +1880,10 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         break;
       }
       case "nexus_surge": {
-        // "Nexus hex becomes Wasteland for 5 rounds"
-        // Mark the center hex as wasteland temporarily
-        const nexusHex = this.state.hexGrid.get(hexKey({ q: 0, r: 0 }));
-        if (nexusHex) {
-          nexusHex.terrain = "wasteland";
-          nexusHex.productionNumber = 0;
-          // It will need to be restored later — for now this is permanent per-crisis
+        const basinHex = this.state.hexGrid.get(hexKey({ q: 0, r: 0 }));
+        if (basinHex) {
+          basinHex.terrain = "wasteland";
+          basinHex.productionNumber = 0;
         }
         break;
       }
@@ -2196,24 +2549,34 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   }
 
   private refreshCommonsHealth(): void {
-    const totalRelevantHexes = Array.from(this.state.hexGrid.values())
-      .filter((tile) => tile.terrain !== "nexus").length;
-    const wastelandHexes = Array.from(this.state.hexGrid.values())
-      .filter((tile) => tile.terrain === "wasteland").length;
+    const ecosystemAverage = this.state.ecosystems.length > 0
+      ? Math.round(
+        this.state.ecosystems.reduce((sum, ecosystem) => sum + ecosystem.health, 0) /
+        this.state.ecosystems.length,
+      )
+      : 100;
+    const collapsed = this.state.ecosystems.filter((ecosystem) => ecosystem.status === "collapsed").length;
+    const strained = this.state.ecosystems.filter((ecosystem) => ecosystem.status === "strained").length;
+    const flourishing = this.state.ecosystems.filter((ecosystem) => ecosystem.status === "flourishing").length;
     const failedCrises = this.state.crisisHistory.filter((crisis) => !crisis.resolved).length;
     const sabotageCount = this.state.behaviorTags.filter((tag) => tag.kind === "sabotage").length;
 
-    let score = 100;
-    score -= totalRelevantHexes > 0 ? Math.round((wastelandHexes / totalRelevantHexes) * 60) : 0;
-    score -= failedCrises * 12;
-    score -= sabotageCount * 4;
+    let score = ecosystemAverage;
+    score += flourishing * 2;
+    score -= strained * 4;
+    score -= collapsed * 10;
+    score -= failedCrises * 8;
+    score -= sabotageCount * 3;
     score = Math.max(0, Math.min(100, score));
 
     const payableFraction = score / 100;
     const payablePrizePool = this.applyFractionToBigInt(this.state.prizePool, payableFraction);
     const slashedPrizePool = this.state.prizePool - payablePrizePool;
     const reasons: string[] = [];
-    if (wastelandHexes > 0) reasons.push(`${wastelandHexes} wasteland hexes`);
+    reasons.push(`${ecosystemAverage} avg ecosystem health`);
+    if (flourishing > 0) reasons.push(`${flourishing} ecosystems flourishing`);
+    if (strained > 0) reasons.push(`${strained} ecosystems strained`);
+    if (collapsed > 0) reasons.push(`${collapsed} ecosystems collapsed`);
     if (failedCrises > 0) reasons.push(`${failedCrises} failed crises`);
     if (sabotageCount > 0) reasons.push(`${sabotageCount} sabotage incidents`);
     if (reasons.length === 0) reasons.push("Commons stable");
@@ -2293,8 +2656,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   }
 
   private getScarcestResource(resources: ResourceInventory): ResourceType {
-    const types: ResourceType[] = ["grain", "timber", "ore", "energy"];
-    return types.reduce((min, r) =>
+    return RESOURCE_NAMES.reduce((min, r) =>
       resources[r] < resources[min] ? r : min,
     );
   }

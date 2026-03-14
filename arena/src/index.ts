@@ -21,7 +21,7 @@ import { AdminServer } from "./admin/server.js";
 async function main() {
   console.log();
   console.log("  ╔══════════════════════════════════════════════════╗");
-  console.log("  ║       NEXUS OBSERVATORY + ADMIN                   ║");
+  console.log("  ║   COMEDY OF THE COMMONS OBSERVATORY + ADMIN       ║");
   console.log("  ║       Coordination Olympiad Arena                 ║");
   console.log("  ╚══════════════════════════════════════════════════╝");
   console.log();

@@ -1,0 +1,24 @@
+<svg width="220" height="220" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="roseCore" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(110 110) rotate(90) scale(110)">
+      <stop stop-color="#F0E3BF" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="110" cy="110" r="96" stroke="#F0E3BF" stroke-opacity="0.16" stroke-width="2"/>
+  <circle cx="110" cy="110" r="68" stroke="#D9B56D" stroke-opacity="0.18" stroke-width="1.5"/>
+  <circle cx="110" cy="110" r="28" fill="url(#roseCore)"/>
+  <path d="M110 20L128 88L110 76L92 88L110 20Z" fill="#D9B56D" fill-opacity="0.9"/>
+  <path d="M110 200L128 132L110 144L92 132L110 200Z" fill="#F0E3BF" fill-opacity="0.38"/>
+  <path d="M20 110L88 128L76 110L88 92L20 110Z" fill="#F0E3BF" fill-opacity="0.28"/>
+  <path d="M200 110L132 128L144 110L132 92L200 110Z" fill="#72A9B5" fill-opacity="0.44"/>
+  <path d="M54 54L96 98L88 78L78 88L54 54Z" fill="#F0E3BF" fill-opacity="0.18"/>
+  <path d="M166 54L122 96L142 88L132 78L166 54Z" fill="#D47C61" fill-opacity="0.22"/>
+  <path d="M54 166L98 122L78 132L88 142L54 166Z" fill="#72A9B5" fill-opacity="0.18"/>
+  <path d="M166 166L122 122L132 142L142 132L166 166Z" fill="#F0E3BF" fill-opacity="0.18"/>
+  <circle cx="110" cy="110" r="10" fill="#F0E3BF" fill-opacity="0.82"/>
+  <path d="M106 8H114" stroke="#F0E3BF" stroke-width="3" stroke-linecap="round"/>
+  <path d="M106 212H114" stroke="#F0E3BF" stroke-width="3" stroke-linecap="round"/>
+  <path d="M8 106H16" stroke="#F0E3BF" stroke-width="3" stroke-linecap="round"/>
+  <path d="M204 106H212" stroke="#F0E3BF" stroke-width="3" stroke-linecap="round"/>
+</svg>

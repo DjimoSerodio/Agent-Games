@@ -22,6 +22,7 @@ import {
   NexusAction,
   NexusActionType,
   ResourceType,
+  RESOURCE_NAMES,
 } from "../games/nexus/types.js";
 
 // ============================================================
@@ -61,6 +62,8 @@ const SUBMIT_ACTIONS_TOOL: Anthropic.Tool = {
                 "trade_player",
                 "trade_bank",
                 "explore",
+                "extract_commons",
+                "restore_ecosystem",
                 "sabotage",
                 "crisis_contribute",
                 "pass",
@@ -76,6 +79,8 @@ const SUBMIT_ACTIONS_TOOL: Anthropic.Tool = {
                     grain: { type: "number" },
                     timber: { type: "number" },
                     ore: { type: "number" },
+                    fish: { type: "number" },
+                    water: { type: "number" },
                     energy: { type: "number" },
                   },
                 },
@@ -85,16 +90,18 @@ const SUBMIT_ACTIONS_TOOL: Anthropic.Tool = {
                     grain: { type: "number" },
                     timber: { type: "number" },
                     ore: { type: "number" },
+                    fish: { type: "number" },
+                    water: { type: "number" },
                     energy: { type: "number" },
                   },
                 },
                 bankGiveType: {
                   type: "string",
-                  enum: ["grain", "timber", "ore", "energy"],
+                  enum: ["grain", "timber", "ore", "fish", "water", "energy"],
                 },
                 bankReceiveType: {
                   type: "string",
-                  enum: ["grain", "timber", "ore", "energy"],
+                  enum: ["grain", "timber", "ore", "fish", "water", "energy"],
                 },
                 bankGiveAmount: { type: "number" },
                 contribution: {
@@ -103,8 +110,15 @@ const SUBMIT_ACTIONS_TOOL: Anthropic.Tool = {
                     grain: { type: "number" },
                     timber: { type: "number" },
                     ore: { type: "number" },
+                    fish: { type: "number" },
+                    water: { type: "number" },
                     energy: { type: "number" },
                   },
+                },
+                ecosystemId: { type: "string" },
+                extractionLevel: {
+                  type: "string",
+                  enum: ["low", "medium", "high"],
                 },
               },
             },
@@ -220,37 +234,42 @@ export class LLMAgent implements GameAgent {
   private trustMap: Record<AgentId, number> = {};
   private apiLog: ApiCallLog[] = [];
 
-  /** Nexus game rules summary embedded in system prompt */
+  /** Comedy of the Commons rules summary embedded in system prompt */
   private static readonly GAME_RULES_SUMMARY = `
-# Nexus — Coordination Game Rules
+# Comedy of the Commons — Coordination Game Rules
 
 ## Overview
-Nexus is a multiplayer resource-trading game on a hex grid. Players gather resources, build structures, trade with each other, and collectively respond to crises. Victory points (VP) determine the winner.
+Comedy of the Commons is a multiplayer resource-trading strategy game on a living world map. Players gather regional resources, build structures, trade with each other, steward shared ecosystems, and collectively respond to crises. Victory points (VP) determine the winner, but the commons determines how much prize money survives.
 
 ## Resources
-Four types: Grain, Timber, Ore, Energy. Max 10 total resources per player.
-Produced each round based on the production wheel and your settlement/city locations.
+Six types: Grain, Timber, Ore, Fish, Water, Energy. Max 14 total resources per player.
+Regions produce one primary resource each round based on the production wheel and your settlement/city locations.
 
 ## Structures & Costs
 - Road: 1 Grain + 1 Timber (0 VP)
-- Settlement: 1 Grain + 1 Timber + 1 Ore (1 VP)
-- City (upgrade from settlement): 2 Grain + 3 Ore (2 VP)
-- Beacon: 1 Ore + 2 Energy (1 VP, boosts influence)
-- Trade Post: 2 Timber + 1 Energy (0 VP, improves trades)
+- Settlement: 1 Grain + 1 Timber + 1 Ore + 1 Water (1 VP)
+- City (upgrade from settlement): 2 Grain + 2 Ore + 1 Water (2 VP total)
+- Beacon: 1 Ore + 1 Water + 1 Energy (1 VP, boosts visibility and influence)
+- Trade Post: 1 Timber + 1 Fish + 1 Water (0 VP, improves bank trades)
 
 ## Actions (max 2 per round)
 - build_road, build_settlement, build_city, build_beacon, build_trade_post
 - trade_player: exchange resources with another player (both must agree)
 - trade_bank: trade 4 of one resource for 1 of another (trade posts improve rate)
-- explore: reveal fog-of-war hexes
+- explore: scout the map edge / reveal regional context
+- extract_commons: take fish, timber, water, or grain from a shared ecosystem at low/medium/high intensity
+- restore_ecosystem: spend resources to heal a shared ecosystem
 - sabotage: destroy an opponent's road (costs 1 Energy + 1 Ore, hurts trust)
 - crisis_contribute: contribute resources to resolve a shared crisis
 - pass: do nothing
 
+## Commons Layer
+Shared ecosystems span multiple regions. If total extraction is lower than regeneration, the ecosystem heals and may flourish. If extraction exceeds regeneration for too long, it degrades or collapses. Flourishing ecosystems improve regional production; collapsed ecosystems suppress it and slash the payable prize pool.
+
 ## Crises
 Random events that threaten all players. Require collective resource contributions.
 Contributors share VP and influence rewards. Non-contributors face penalties.
-Types: Blight, Storm, Famine, Nexus Surge, The Rift.
+Types: Blight, Storm, Famine, Current Surge, The Rift.
 
 ## Trading
 Player trades: both sides must agree (negotiate first, then submit matching trade actions).
@@ -268,7 +287,7 @@ Influence comes from beacons and crisis contributions.
 
 ## Negotiation
 Each round has a negotiation phase where you can send public broadcasts and private DMs.
-Everything you say publicly is seen by all agents. Private messages are only seen by the recipient.
+Everything you say publicly is seen by all agents. Private messages are only seen by the recipient in-game, but spectators can watch them live.
 Make promises, propose trades, form alliances — but you choose whether to follow through.
 
 ## Winning
@@ -468,7 +487,7 @@ Damaging the commons can slash the final payable prize pool and roll that amount
 
   private buildSystemPrompt(phase: string): string {
     return [
-      "You are an AI agent playing the Nexus coordination game.",
+      "You are an AI agent playing Comedy of the Commons.",
       "",
       "## Game Rules",
       LLMAgent.GAME_RULES_SUMMARY,
@@ -530,6 +549,16 @@ Damaging the commons can slash the final payable prize pool and roll that amount
       "",
     );
 
+    if (view.ecosystemStates.length > 0) {
+      parts.push("### Shared Ecosystems");
+      for (const ecosystem of view.ecosystemStates) {
+        parts.push(
+          `- ${ecosystem.name}: ${ecosystem.health}/${ecosystem.maxHealth} health, ${ecosystem.resource}, status=${ecosystem.status}`,
+        );
+      }
+      parts.push("");
+    }
+
     if (view.visibleCommitments.length > 0) {
       parts.push("### Visible Commitments");
       for (const commitment of view.visibleCommitments.slice(-8)) {
@@ -587,23 +616,30 @@ Damaging the commons can slash the final payable prize pool and roll that amount
     const r = view.myResources;
     const affordability: string[] = [];
     if (r.grain >= 1 && r.timber >= 1) affordability.push("road (1G+1T)");
-    if (r.grain >= 1 && r.timber >= 1 && r.ore >= 1)
-      affordability.push("settlement (1G+1T+1O)");
+    if (r.grain >= 1 && r.timber >= 1 && r.ore >= 1 && r.water >= 1)
+      affordability.push("settlement (1G+1T+1O+1W)");
     if (
       r.grain >= 2 &&
-      r.ore >= 3 &&
+      r.ore >= 2 &&
+      r.water >= 1 &&
       view.myStructures.settlements.length > 0
     )
-      affordability.push("city (2G+3O, upgrades a settlement)");
-    if (r.ore >= 1 && r.energy >= 2) affordability.push("beacon (1O+2E)");
-    if (r.timber >= 2 && r.energy >= 1)
-      affordability.push("trade_post (2T+1E)");
+      affordability.push("city (2G+2O+1W, upgrades a settlement)");
+    if (r.ore >= 1 && r.energy >= 1 && r.water >= 1) affordability.push("beacon (1O+1W+1E)");
+    if (r.timber >= 1 && r.fish >= 1 && r.water >= 1)
+      affordability.push("trade_post (1T+1F+1W)");
     if (r.energy >= 1 && r.ore >= 1) affordability.push("sabotage (1E+1O)");
+    if (view.ecosystemStates.some((ecosystem) => ecosystem.health > 0)) {
+      affordability.push("extract_commons (low/medium/high)");
+    }
+    if (r.water >= 1 && (r.energy >= 1 || r.grain >= 1)) {
+      affordability.push("restore_ecosystem (1W + support resource)");
+    }
     affordability.push("explore (free)");
     affordability.push("pass (free)");
 
     // Bank trade if enough surplus
-    for (const res of ["grain", "timber", "ore", "energy"] as ResourceType[]) {
+    for (const res of RESOURCE_NAMES) {
       if (r[res] >= 4) {
         affordability.push(
           `trade_bank: trade 4 ${res} for 1 of another resource`,
@@ -635,6 +671,16 @@ Damaging the commons can slash the final payable prize pool and roll that amount
       );
     }
 
+    if (view.ecosystemStates.length > 0) {
+      parts.push(
+        "### Shared Ecosystems",
+        ...view.ecosystemStates.map(
+          (ecosystem) => `  - ${ecosystem.name}: ${ecosystem.health}/${ecosystem.maxHealth} (${ecosystem.status})`,
+        ),
+        "",
+      );
+    }
+
     if (this.memory.length > 0) {
       parts.push("### Memory (recent rounds)");
       parts.push(this.formatMemory());
@@ -648,6 +694,8 @@ Damaging the commons can slash the final payable prize pool and roll that amount
       "For trade_player, include partnerId, give, and receive in params.",
       "For trade_bank, include bankGiveType, bankReceiveType, bankGiveAmount.",
       "For crisis_contribute, include contribution (resource amounts).",
+      "For extract_commons, include ecosystemId and extractionLevel.",
+      "For restore_ecosystem, include ecosystemId.",
       "For build/explore/pass/sabotage, params can be empty {}.",
     );
 
@@ -807,6 +855,8 @@ Damaging the commons can slash the final payable prize pool and roll that amount
     "trade_player",
     "trade_bank",
     "explore",
+    "extract_commons",
+    "restore_ecosystem",
     "sabotage",
     "crisis_contribute",
     "pass",
@@ -862,7 +912,7 @@ Damaging the commons can slash the final payable prize pool and roll that amount
     const systemPrompt = this.buildSystemPrompt("action");
     const userPrompt = [
       "Your previous action response was invalid. Please try again.",
-      "Remember: each action must have a valid 'type' (one of: build_road, build_settlement, build_city, build_beacon, build_trade_post, trade_player, trade_bank, explore, sabotage, crisis_contribute, pass).",
+      "Remember: each action must have a valid 'type' (one of: build_road, build_settlement, build_city, build_beacon, build_trade_post, trade_player, trade_bank, explore, extract_commons, restore_ecosystem, sabotage, crisis_contribute, pass).",
       "And a 'params' object (can be {} for simple actions).",
       "",
       this.buildActionPrompt(view),

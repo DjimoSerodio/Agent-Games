@@ -19,7 +19,13 @@ export type TerrainType =
   | "wasteland" // Produces nothing
   | "nexus";    // Produces any (wild)
 
-export type ResourceType = "grain" | "timber" | "ore" | "energy";
+export type ResourceType =
+  | "grain"
+  | "timber"
+  | "ore"
+  | "fish"
+  | "water"
+  | "energy";
 
 export const TERRAIN_RESOURCE: Record<TerrainType, ResourceType | null> = {
   plains: "grain",
@@ -41,18 +47,105 @@ export interface HexTile {
   productionNumber: number; // 2-12
   revealed: boolean; // Fog of war
   revealedBy: AgentId[];
+  regionId?: string;
+  regionName?: string;
+  biome?: RegionBiome;
+  primaryResource?: ResourceType;
+  center?: WorldPoint;
+  polygon?: WorldPoint[];
+  ecosystemIds?: string[];
 }
 
 export interface HexVertex {
   hexes: HexCoord[]; // The 3 hexes that share this vertex
   structure: VertexStructure | null;
   owner: AgentId | null;
+  regionId?: string;
 }
 
 export interface HexEdge {
   hexes: [HexCoord, HexCoord]; // The 2 hexes that share this edge
   road: boolean;
   owner: AgentId | null;
+  regionIds?: [string, string];
+}
+
+export interface WorldPoint {
+  x: number;
+  y: number;
+}
+
+export type RegionBiome =
+  | "fjord"
+  | "taiga"
+  | "steppe"
+  | "wetland"
+  | "highland"
+  | "desert"
+  | "rainforest"
+  | "archipelago"
+  | "farmland"
+  | "volcanic"
+  | "riverland";
+
+export interface WorldMapAssets {
+  frame: string;
+  compass: string;
+  underlay: string;
+  resourceIcons: Record<ResourceType, string>;
+  ecosystemIcons: Record<EcosystemKind, string>;
+}
+
+export interface WorldRegion {
+  id: string;
+  name: string;
+  coord: HexCoord;
+  biome: RegionBiome;
+  primaryResource: ResourceType;
+  secondaryResources: ResourceType[];
+  productionNumber: number;
+  anchor: WorldPoint;
+  polygon: WorldPoint[];
+  label: WorldPoint;
+  adjacentRegionIds: string[];
+  ecosystemIds: string[];
+  flavor: string;
+  asset?: string;
+}
+
+export type EcosystemKind = "fishery" | "forest" | "aquifer" | "wetland";
+
+export type ExtractionLevel = "low" | "medium" | "high";
+
+export interface EcosystemExtractionProfile {
+  level: ExtractionLevel;
+  yield: number;
+  pressure: number;
+}
+
+export interface WorldEcosystem {
+  id: string;
+  name: string;
+  kind: EcosystemKind;
+  resource: ResourceType;
+  regionIds: string[];
+  label: WorldPoint;
+  baseRegeneration: number;
+  maxHealth: number;
+  flourishThreshold: number;
+  collapseThreshold: number;
+  extractionProfiles: EcosystemExtractionProfile[];
+  description: string;
+  asset: string;
+}
+
+export interface WorldMap {
+  id: string;
+  name: string;
+  regions: WorldRegion[];
+  ecosystems: WorldEcosystem[];
+  assets: WorldMapAssets;
+  startingRegionIds: string[];
 }
 
 // ============================================================
@@ -65,15 +158,17 @@ export interface StructureCost {
   grain: number;
   timber: number;
   ore: number;
+  fish: number;
+  water: number;
   energy: number;
 }
 
 export const STRUCTURE_COSTS: Record<VertexStructure | "road", StructureCost> = {
-  road:       { grain: 1, timber: 1, ore: 0, energy: 0 },
-  settlement: { grain: 1, timber: 1, ore: 1, energy: 0 },
-  city:       { grain: 2, timber: 0, ore: 3, energy: 0 },
-  beacon:     { grain: 0, timber: 0, ore: 1, energy: 2 },
-  trade_post: { grain: 0, timber: 2, ore: 0, energy: 1 },
+  road:       { grain: 1, timber: 1, ore: 0, fish: 0, water: 0, energy: 0 },
+  settlement: { grain: 1, timber: 1, ore: 1, fish: 0, water: 1, energy: 0 },
+  city:       { grain: 2, timber: 0, ore: 2, fish: 0, water: 1, energy: 0 },
+  beacon:     { grain: 0, timber: 0, ore: 1, fish: 0, water: 1, energy: 1 },
+  trade_post: { grain: 0, timber: 1, ore: 0, fish: 1, water: 1, energy: 0 },
 };
 
 export const STRUCTURE_VP: Record<VertexStructure, number> = {
@@ -91,6 +186,8 @@ export interface ResourceInventory {
   grain: number;
   timber: number;
   ore: number;
+  fish: number;
+  water: number;
   energy: number;
 }
 
@@ -98,10 +195,21 @@ export const EMPTY_INVENTORY: ResourceInventory = {
   grain: 0,
   timber: 0,
   ore: 0,
+  fish: 0,
+  water: 0,
   energy: 0,
 };
 
-export const RESOURCE_CAP = 10; // Max total resources
+export const RESOURCE_NAMES: ResourceType[] = [
+  "grain",
+  "timber",
+  "ore",
+  "fish",
+  "water",
+  "energy",
+];
+
+export const RESOURCE_CAP = 14; // Max total resources
 
 // ============================================================
 // Production Wheel
@@ -141,8 +249,8 @@ export const CRISIS_DEFINITIONS: Record<CrisisType, Omit<CrisisEvent, "contribut
   blight: {
     type: "blight",
     name: "The Blight",
-    description: "A fungal plague threatens the grain fields. Contribute Grain to save the harvest.",
-    threshold: { grain: 8, timber: 0, ore: 0, energy: 0 },
+    description: "A fungal bloom tears through the breadbasket. Contribute Grain and Water to save the harvest.",
+    threshold: { grain: 8, timber: 0, ore: 0, fish: 0, water: 2, energy: 0 },
     rewardVP: 1,
     rewardInfluence: 2,
     penaltyDescription: "All Plains hexes skip next production cycle",
@@ -150,8 +258,8 @@ export const CRISIS_DEFINITIONS: Record<CrisisType, Omit<CrisisEvent, "contribut
   storm: {
     type: "storm",
     name: "The Great Storm",
-    description: "A massive storm approaches. Contribute Energy to power the shields.",
-    threshold: { grain: 0, timber: 0, ore: 0, energy: 6 },
+    description: "A cross-ocean storm front is incoming. Contribute Energy and Timber to brace the sea walls.",
+    threshold: { grain: 0, timber: 2, ore: 0, fish: 0, water: 0, energy: 6 },
     rewardVP: 0,
     rewardInfluence: 3,
     penaltyDescription: "Random roads destroyed across the map",
@@ -159,26 +267,26 @@ export const CRISIS_DEFINITIONS: Record<CrisisType, Omit<CrisisEvent, "contribut
   famine: {
     type: "famine",
     name: "The Famine",
-    description: "Crops fail across the land. Contribute Grain and Timber for emergency shelters.",
-    threshold: { grain: 5, timber: 3, ore: 0, energy: 0 },
+    description: "Crop failures ripple outward. Contribute Grain, Fish, Timber, and Water for emergency relief.",
+    threshold: { grain: 5, timber: 3, ore: 0, fish: 2, water: 2, energy: 0 },
     rewardVP: 1,
     rewardInfluence: 2,
     penaltyDescription: "Resource cap reduced to 5 for 3 rounds",
   },
   nexus_surge: {
     type: "nexus_surge",
-    name: "Nexus Surge",
-    description: "The Nexus is overcharging! Contribute Energy and Ore to stabilize it.",
-    threshold: { grain: 0, timber: 0, ore: 4, energy: 4 },
+    name: "Current Surge",
+    description: "The continental grid is overcharging. Contribute Energy, Ore, and Water to stabilize it.",
+    threshold: { grain: 0, timber: 0, ore: 3, fish: 0, water: 1, energy: 4 },
     rewardVP: 1,
     rewardInfluence: 2,
-    penaltyDescription: "Nexus hex becomes Wasteland for 5 rounds",
+    penaltyDescription: "A core production region becomes scorched and stalls",
   },
   the_rift: {
     type: "the_rift",
     name: "The Rift",
     description: "A dimensional rift opens! Contribute ANY 10 resources to seal it.",
-    threshold: { grain: 3, timber: 3, ore: 2, energy: 2 }, // Any 10 total
+    threshold: { grain: 2, timber: 2, ore: 2, fish: 1, water: 2, energy: 1 }, // Any 10 total
     rewardVP: 3,
     rewardInfluence: 3,
     penaltyDescription: "Random hex becomes permanent Wasteland",
@@ -198,6 +306,8 @@ export type NexusActionType =
   | "trade_player"
   | "trade_bank"
   | "explore"
+  | "extract_commons"
+  | "restore_ecosystem"
   | "sabotage"
   | "crisis_contribute"
   | "pass";
@@ -222,6 +332,10 @@ export interface NexusAction extends Action {
     targetEdge?: { hexes: [HexCoord, HexCoord] };
     // For crisis_contribute: resources
     contribution?: Partial<ResourceInventory>;
+    // For ecosystem extraction / restoration
+    ecosystemId?: string;
+    extractionLevel?: ExtractionLevel;
+    restoration?: Partial<ResourceInventory>;
   };
 }
 
@@ -243,6 +357,36 @@ export interface NexusPlayerState {
   vp: number;
   longestRoad: number;
   revealedHexes: Set<HexCoord>;
+}
+
+export interface EcosystemState {
+  id: string;
+  name: string;
+  kind: EcosystemKind;
+  resource: ResourceType;
+  regionIds: string[];
+  label: WorldPoint;
+  health: number;
+  maxHealth: number;
+  collapseThreshold: number;
+  flourishThreshold: number;
+  baseRegeneration: number;
+  extractionProfiles: EcosystemExtractionProfile[];
+  lastPressure: number;
+  lastYield: number;
+  lastDelta: number;
+  status: "flourishing" | "stable" | "strained" | "collapsed";
+  asset: string;
+  description: string;
+}
+
+export interface EcosystemExtractionRecord {
+  ecosystemId: string;
+  agentId: AgentId;
+  level: ExtractionLevel;
+  pressure: number;
+  yield: number;
+  round: number;
 }
 
 // ============================================================
@@ -407,6 +551,7 @@ export interface CommonsHealthSnapshot {
 export interface NexusGameState extends GameState {
   // Map
   hexGrid: Map<string, HexTile>; // key = "q,r"
+  worldMap: WorldMap;
   vertices: HexVertex[];
   edges: HexEdge[];
 
@@ -421,6 +566,10 @@ export interface NexusGameState extends GameState {
   activeCrisis: CrisisEvent | null;
   crisisHistory: CrisisEvent[];
   crisisCooldown: number; // Rounds until next crisis can trigger
+
+  // Shared ecosystems
+  ecosystems: EcosystemState[];
+  ecosystemExtractions: EcosystemExtractionRecord[];
 
   // Scoring
   longestRoadHolder: AgentId | null;
@@ -463,6 +612,8 @@ export interface NexusAgentView {
 
   // Map (only revealed hexes)
   visibleHexes: HexTile[];
+  worldMap: WorldMap;
+  ecosystemStates: EcosystemState[];
   visibleVertices: HexVertex[];
   visibleEdges: HexEdge[];
 

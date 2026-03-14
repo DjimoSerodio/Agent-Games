@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nexus Admin Dashboard</title>
+  <title>Comedy of the Commons Admin Dashboard</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -200,7 +200,7 @@
     /* Resource display */
     .resource-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 6px;
       margin: 8px 0;
     }
@@ -216,6 +216,8 @@
     .resource-cell.grain .value { color: #f0c040; }
     .resource-cell.timber .value { color: #40a040; }
     .resource-cell.ore .value { color: #a0a0b0; }
+    .resource-cell.fish .value { color: #63a5a7; }
+    .resource-cell.water .value { color: #7cc0c1; }
     .resource-cell.energy .value { color: #60c0f0; }
 
     /* Badge */
@@ -264,7 +266,7 @@
 </head>
 <body>
   <div class="header">
-    <h1>NEXUS ADMIN</h1>
+    <h1>COMEDY ADMIN</h1>
     <div class="status">
       <span>Events: <span class="value" id="eventCount">0</span></span>
       <span>Agents: <span class="value" id="agentCount">0</span></span>
@@ -534,7 +536,7 @@
         case 'crisis.triggered': return `${d.crisis?.name || d.crisis?.type}`;
         case 'crisis.resolved': return `${d.crisis} - ${d.resolved ? 'RESOLVED' : 'FAILED'}`;
         case 'game.agent_info': return `${(d.agents || []).length} agents registered`;
-        case 'game.map_data': return `${(d.hexes || []).length} hexes`;
+        case 'game.map_data': return `${(d.worldMap?.regions || d.hexes || []).length} regions`;
         default: return JSON.stringify(d).slice(0, 100);
       }
     }
@@ -598,6 +600,8 @@
             <div class="resource-cell timber"><div class="label">Timber</div><div class="value">${latestState.resources?.timber || 0}</div></div>
             <div class="resource-cell ore"><div class="label">Ore</div><div class="value">${latestState.resources?.ore || 0}</div></div>
             <div class="resource-cell energy"><div class="label">Energy</div><div class="value">${latestState.resources?.energy || 0}</div></div>
+            <div class="resource-cell fish"><div class="label">Fish</div><div class="value">${latestState.resources?.fish || 0}</div></div>
+            <div class="resource-cell water"><div class="label">Water</div><div class="value">${latestState.resources?.water || 0}</div></div>
           </div>
           <p>VP: <strong>${latestState.vp}</strong> | Influence: <strong>${latestState.influence}</strong> | Roads: <strong>${latestState.longestRoad}</strong></p>
           <p>Settlements: ${latestState.structures?.settlements || 0} | Cities: ${latestState.structures?.cities || 0} | Beacons: ${latestState.structures?.beacons || 0}</p>
@@ -655,7 +659,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `nexus-admin-${Date.now()}.json`;
+      a.download = `comedy-admin-${Date.now()}.json`;
       a.click();
       URL.revokeObjectURL(url);
     }

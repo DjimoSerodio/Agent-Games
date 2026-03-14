@@ -20,6 +20,7 @@ import { fileURLToPath } from "url";
 import { EventBus } from "../core/event-bus.js";
 import { ArenaEvent, GameId } from "../core/types.js";
 import { TrustGraph } from "../trust/trust-graph.js";
+import { createComedyWorldMap } from "../games/nexus/world-map.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,6 +36,7 @@ export class ObservatoryServer {
   private wss: WebSocketServer | null = null;
   private eventBus: EventBus;
   private trustGraph: TrustGraph;
+  private worldTemplate = createComedyWorldMap();
   private spectators: Map<string, SpectatorConnection> = new Map();
   private nextId = 0;
   private simulationRunning = false;
@@ -81,12 +83,23 @@ export class ObservatoryServer {
     // Send welcome message with current state
     this.sendToSpectator(id, {
       type: "welcome",
-      data: {
-        spectatorId: id,
-        trustGraph: this.trustGraph.getTrustMatrix(),
-        timestamp: Date.now(),
-      },
-    });
+        data: {
+          spectatorId: id,
+          trustGraph: this.trustGraph.getTrustMatrix(),
+          worldMap: {
+            id: this.worldTemplate.id,
+            name: this.worldTemplate.name,
+            assets: this.worldTemplate.assets,
+            regions: this.worldTemplate.regions,
+            ecosystems: this.worldTemplate.ecosystems.map((ecosystem) => ({
+              ...ecosystem,
+              health: ecosystem.maxHealth,
+              status: "stable",
+            })),
+          },
+          timestamp: Date.now(),
+        },
+      });
 
     ws.on("message", (data) => {
       try {
@@ -300,8 +313,8 @@ export class ObservatoryServer {
     const { SimpleAgent } = await import("../agents/simple-agent.js");
 
     const config = {
-      id: `nexus_${uuid().slice(0, 8)}`,
-      type: "nexus",
+      id: `comedy_${uuid().slice(0, 8)}`,
+      type: "comedy_commons",
       maxPlayers: 4,
       minPlayers: 4,
       maxRounds: 25,
@@ -324,7 +337,7 @@ export class ObservatoryServer {
     const engine = new NexusEngine(config, this.eventBus, this.trustGraph);
     // No artificial delays — game runs at agent response speed.
     // Events stream to Observatory via WebSocket in real-time.
-    engine.paceDelayMs = 0;
+    engine.paceDelayMs = 60;
 
     const agentInfo: Array<{ id: string; name: string; strategy: string }> = [];
     for (const { name, strategy } of strategies) {

@@ -3,7 +3,7 @@ GO.md
 AGENTS.md
 .beads/
 .claude/
-docs/planning/
+docs/
 
 # === Standard ignores ===
 node_modules/

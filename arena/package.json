@@ -9,7 +9,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test": "vitest",
-    "simulate": "tsx src/simulate.ts",
+    "simulate": "tsx src/games/nexus/simulate.ts",
     "simulate:nexus": "tsx src/games/nexus/simulate.ts"
   },
   "dependencies": {
