@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus 3D Map Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      background: #07111b; 
+      font-family: system-ui, sans-serif; 
+      color: #f2e4c7;
+      overflow: hidden;
+    }
+    #container { 
+      width: 100vw; 
+      height: 100vh; 
+    }
+    #info {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: rgba(9, 20, 31, 0.9);
+      padding: 16px 20px;
+      border-radius: 12px;
+      border: 1px solid rgba(239, 223, 192, 0.2);
+      font-size: 13px;
+      line-height: 1.6;
+      z-index: 100;
+    }
+    #info h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #ddb469;
+    }
+    #info p {
+      opacity: 0.8;
+    }
+    #controls {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      display: flex;
+      gap: 10px;
+      z-index: 100;
+    }
+    #controls button {
+      background: rgba(221, 180, 105, 0.15);
+      border: 1px solid rgba(221, 180, 105, 0.4);
+      color: #ddb469;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+    }
+    #controls button:hover {
+      background: rgba(221, 180, 105, 0.25);
+      border-color: rgba(221, 180, 105, 0.6);
+    }
+    #screenshot {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 100;
+    }
+    #screenshot button {
+      background: rgba(127, 158, 115, 0.15);
+      border: 1px solid rgba(127, 158, 115, 0.4);
+      color: #7f9e73;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    #screenshot button:hover {
+      background: rgba(127, 158, 115, 0.25);
+    }
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+  
+  <div id="info">
+    <h3>Nexus 3D Hex Map</h3>
+    <p>Drag to rotate • Scroll to zoom • Right-drag to pan</p>
+    <p style="margin-top: 8px;">Production animation on hex tiles</p>
+  </div>
+
+  <div id="controls">
+    <button onclick="resetCamera()">Reset Camera</button>
+    <button onclick="toggleStructures()">Toggle Structures</button>
+    <button onclick="toggleAgents()">Toggle Agents</button>
+  </div>
+
+  <div id="screenshot">
+    <button onclick="takeScreenshot()">Take Screenshot</button>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.162.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    // Terrain colors
+    const TERRAIN_COLORS = {
+      plains:    { base: 0x8fbc8f, dark: 0x556b2f },
+      forest:    { base: 0x228b22, dark: 0x006400 },
+      mountains: { base: 0x8b8b83, dark: 0x696969 },
+      rivers:    { base: 0x4682b4, dark: 0x1e3a5f },
+      commons:   { base: 0xdda0dd, dark: 0x8b4789 },
+      wasteland: { base: 0x8b7355, dark: 0x5c4033 },
+    };
+
+    // Sample game state
+    const sampleState = {
+      hexes: [
+        { q: 0, r: 0, terrain: "commons", productionNumber: 6, revealed: true },
+        { q: 1, r: 0, terrain: "plains", productionNumber: 2, revealed: true },
+        { q: 1, r: -1, terrain: "forest", productionNumber: 8, revealed: true },
+        { q: 0, r: 1, terrain: "rivers", productionNumber: 4, revealed: true },
+        { q: -1, r: 1, terrain: "mountains", productionNumber: 10, revealed: true },
+        { q: -1, r: 0, terrain: "forest", productionNumber: 3, revealed: true },
+        { q: 0, r: -1, terrain: "plains", productionNumber: 9, revealed: true },
+        { q: 1, r: 1, terrain: "wasteland", productionNumber: 0, revealed: true },
+        { q: -1, r: -1, terrain: "plains", productionNumber: 5, revealed: true },
+        { q: 2, r: -1, terrain: "forest", productionNumber: 7, revealed: true },
+      ],
+      structures: [
+        { type: "village", owner: "alice", hexes: [{ q: 0, r: 0 }] },
+        { type: "township", owner: "bob", hexes: [{ q: 1, r: 0 }] },
+        { type: "city", owner: "charlie", hexes: [{ q: 0, r: 1 }] },
+        { type: "road", owner: "alice", hexes: [{ q: 0, r: 0 }, { q: 1, r: 0 }] },
+      ],
+      productionNumber: 6,
+      agentPositions: {
+        alice: { q: 0, r: 0 },
+        bob: { q: 1, r: 0 },
+        charlie: { q: 0, r: 1 },
+      }
+    };
+
+    // Scene setup
+    const container = document.getElementById('container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x07111b);
+
+    // Fog for atmosphere
+    scene.fog = new THREE.Fog(0x07111b, 40, 120);
+
+    // Camera
+    const camera = new THREE.PerspectiveCamera(
+      45, 
+      window.innerWidth / window.innerHeight, 
+      0.1, 
+      1000
+    );
+    camera.position.set(0, 35, 35);
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    // Controls
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2.2;
+    controls.minDistance = 15;
+    controls.maxDistance = 100;
+
+    // Lights
+    const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambient);
+
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    mainLight.position.set(20, 40, 20);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 2048;
+    mainLight.shadow.mapSize.height = 2048;
+    mainLight.shadow.camera.near = 1;
+    mainLight.shadow.camera.far = 100;
+    mainLight.shadow.camera.left = -30;
+    mainLight.shadow.camera.right = 30;
+    mainLight.shadow.camera.top = 30;
+    mainLight.shadow.camera.bottom = -30;
+    scene.add(mainLight);
+
+    const fillLight = new THREE.DirectionalLight(0x88aaff, 0.3);
+    fillLight.position.set(-20, 20, -20);
+    scene.add(fillLight);
+
+    // Ground
+    const groundGeo = new THREE.PlaneGeometry(100, 100);
+    const groundMat = new THREE.MeshStandardMaterial({
+      color: 0x0a1520,
+      roughness: 0.95,
+    });
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.3;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Hex meshes
+    const hexMeshes = new Map();
+    const structureMeshes = new Map();
+    const agentMeshes = new Map();
+    const clock = new THREE.Clock();
+
+    function hexToWorld(q, r) {
+      const x = Math.sqrt(3) * (q + r / 2);
+      const z = (3 / 2) * r;
+      return { x: x * 2.5, z: z * 2.5 };
+    }
+
+    function createHexMesh(hex) {
+      const terrain = TERRAIN_COLORS[hex.terrain] || TERRAIN_COLORS.wasteland;
+      
+      const geometry = new THREE.CylinderGeometry(1, 1, 0.25, 6, 1);
+      const material = new THREE.MeshStandardMaterial({
+        color: terrain.base,
+        roughness: 0.8,
+        metalness: 0.1,
+        flatShading: true,
+      });
+
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+
+      const pos = hexToWorld(hex.q, hex.r);
+      mesh.position.set(pos.x, 0, pos.z);
+      mesh.rotation.y = Math.PI / 6;
+
+      // Edge outline
+      const edgeGeo = new THREE.EdgesGeometry(geometry);
+      const edgeMat = new THREE.LineBasicMaterial({ 
+        color: terrain.dark,
+        linewidth: 1,
+      });
+      const edges = new THREE.LineSegments(edgeGeo, edgeMat);
+      mesh.add(edges);
+
+      scene.add(mesh);
+      hexMeshes.set(`${hex.q},${hex.r}`, { mesh, hex });
+      return mesh;
+    }
+
+    function createStructureMesh(structure) {
+      const group = new THREE.Group();
+      const height = { village: 0.3, township: 0.5, city: 0.8, beacon: 0.6, road: 0.1 }[structure.type] || 0.3;
+      const color = {
+        village: 0xdda0dd, township: 0xdaa520, city: 0xb8860b, 
+        beacon: 0x4169e1, trade_post: 0x2e8b57, road: 0x8b4513
+      }[structure.type] || 0xffffff;
+
+      const geo = new THREE.BoxGeometry(0.7, height, 0.7);
+      const mat = new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.6,
+        metalness: 0.2,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.y = height / 2;
+      mesh.castShadow = true;
+      group.add(mesh);
+
+      // Roof for buildings
+      if (structure.type !== "road" && structure.type !== "trade_post") {
+        const roofGeo = new THREE.ConeGeometry(0.55, 0.35, 4);
+        const roofMat = new THREE.MeshStandardMaterial({ color: 0x4a3728 });
+        const roof = new THREE.Mesh(roofGeo, roofMat);
+        roof.position.y = height + 0.18;
+        roof.rotation.y = Math.PI / 4;
+        roof.castShadow = true;
+        group.add(roof);
+      }
+
+      const pos = hexToWorld(structure.hexes[0].q, structure.hexes[0].r);
+      group.position.set(pos.x, 0, pos.z);
+      
+      scene.add(group);
+      structureMeshes.set(`${structure.type}_${structure.owner}`, group);
+    }
+
+    function createAgentMesh(agentId, q, r) {
+      const geo = new THREE.SphereGeometry(0.25, 16, 16);
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x00ffff,
+        emissive: 0x004444,
+        emissiveIntensity: 0.5,
+        roughness: 0.3,
+        metalness: 0.7,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+
+      const pos = hexToWorld(q, r);
+      mesh.position.set(pos.x, 1.0, pos.z);
+      mesh.castShadow = true;
+
+      // Glow ring
+      const ringGeo = new THREE.TorusGeometry(0.35, 0.03, 8, 24);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = -0.9;
+      mesh.add(ring);
+
+      scene.add(mesh);
+      agentMeshes.set(agentId, mesh);
+    }
+
+    // Initialize scene
+    function initialize(state) {
+      for (const hex of state.hexes) {
+        createHexMesh(hex);
+      }
+      for (const structure of state.structures) {
+        createStructureMesh(structure);
+      }
+      for (const [agentId, pos] of Object.entries(state.agentPositions)) {
+        createAgentMesh(agentId, pos.q, pos.r);
+      }
+      
+      // Center camera
+      fitCamera();
+    }
+
+    function fitCamera() {
+      if (hexMeshes.size === 0) return;
+      let minX = Infinity, maxX = -Infinity;
+      let minZ = Infinity, maxZ = -Infinity;
+      
+      for (const { mesh } of hexMeshes.values()) {
+        minX = Math.min(minX, mesh.position.x);
+        maxX = Math.max(maxX, mesh.position.x);
+        minZ = Math.min(minZ, mesh.position.z);
+        maxZ = Math.max(maxZ, mesh.position.z);
+      }
+      
+      const centerX = (minX + maxX) / 2;
+      const centerZ = (minZ + maxZ) / 2;
+      const span = Math.max(maxX - minX, maxZ - minZ) * 1.5;
+      
+      camera.position.set(centerX, span * 1.2, centerZ + span * 0.8);
+      controls.target.set(centerX, 0, centerZ);
+      controls.update();
+    }
+
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      
+      const elapsed = clock.getElapsedTime();
+      
+      // Update production pulse
+      for (const [key, { mesh, hex }] of hexMeshes) {
+        const material = mesh.material;
+        if (hex.productionNumber === sampleState.productionNumber && hex.terrain !== "wasteland") {
+          const pulse = 0.6 + 0.4 * Math.sin(elapsed * 3 + hex.q * 0.5 + hex.r * 0.5);
+          material.emissive.setHex(0x334400);
+          material.emissiveIntensity = pulse * 0.4;
+        } else {
+          material.emissive.setHex(0x000000);
+          material.emissiveIntensity = 0;
+        }
+      }
+      
+      // Animate agent glow
+      for (const [agentId, mesh] of agentMeshes) {
+        mesh.position.y = 1.0 + Math.sin(elapsed * 2) * 0.1;
+        mesh.rotation.y = elapsed * 0.5;
+        const scale = 1 + 0.1 * Math.sin(elapsed * 3);
+        mesh.scale.setScalar(scale);
+      }
+      
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // Global functions for buttons
+    window.resetCamera = fitCamera;
+    
+    window.toggleStructures = () => {
+      for (const group of structureMeshes.values()) {
+        group.visible = !group.visible;
+      }
+    };
+    
+    window.toggleAgents = () => {
+      for (const mesh of agentMeshes.values()) {
+        mesh.visible = !mesh.visible;
+      }
+    };
+    
+    window.takeScreenshot = () => {
+      renderer.render(scene, camera);
+      const link = document.createElement('a');
+      link.download = 'nexus-3d-map.png';
+      link.href = renderer.domElement.toDataURL('image/png');
+      link.click();
+    };
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Start
+    initialize(sampleState);
+    animate();
+
+    console.log('Nexus 3D Map Demo loaded');
+  </script>
+</body>
+</html>
