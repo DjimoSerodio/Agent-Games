@@ -62,6 +62,7 @@ import {
   hexDistance,
 } from "./hex-grid.js";
 import { TrustGraph } from "../../trust/trust-graph.js";
+import { ERC8004TrustIntegration, ERC8004Config } from "../../trust/erc8004.js";
 import {
   createComedyWorldMap,
   getRegionByCoord,
@@ -74,6 +75,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
   private static pendingPrizeCarryoverWei = 0n;
 
   private trustGraph: TrustGraph;
+  private erc8004Integration: ERC8004TrustIntegration | null = null;
   private pendingTrades: Map<string, { from: AgentId; to: AgentId; give: Partial<ResourceInventory>; receive: Partial<ResourceInventory> }> = new Map();
   private crisisCooldownRounds = 3;
   private commitmentCounter = 1;
@@ -84,9 +86,12 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
   private behaviorCounter = 1;
   private payoutReceiptCounter = 1;
 
-  constructor(config: GameConfig, eventBus: EventBus, trustGraph: TrustGraph) {
+  constructor(config: GameConfig, eventBus: EventBus, trustGraph: TrustGraph, erc8004Config?: ERC8004Config) {
     super(config, eventBus);
     this.trustGraph = trustGraph;
+    if (erc8004Config) {
+      this.erc8004Integration = new ERC8004TrustIntegration(erc8004Config, trustGraph);
+    }
   }
 
   override async run(): Promise<RoundResult[]> {
@@ -238,6 +243,23 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
 
       // Register agent in trust graph
       this.trustGraph.addAgent(agentId);
+
+      // Register agent in ERC-8004 if configured
+      if (this.erc8004Integration) {
+        try {
+          const agentName = `agent_${agentId.slice(0, 8)}`;
+          await this.erc8004Integration.registerAgentForGame(agentId, {
+            name: agentName,
+            description: `Comedy of the Commons game agent`,
+            services: [{
+              name: "comedy_engine",
+              endpoint: `game://${this.config.id}`,
+            }],
+          });
+        } catch (error) {
+          console.warn(`Failed to register agent ${agentId} on ERC-8004:`, error);
+        }
+      }
     }
 
     await super.initializeAgents();
@@ -632,6 +654,11 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
 
     for (const [agentId, ps] of this.state.playerStates) {
       scores[agentId] = ps.vp;
+    }
+
+    // Sync trust scores to ERC-8004 if configured
+    if (this.erc8004Integration) {
+      this.syncTrustToERC8004();
     }
 
     return scores;
@@ -2916,6 +2943,19 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       this.state.commonsHealthHistory.push(snapshot);
     } else {
       this.state.commonsHealthHistory[this.state.commonsHealthHistory.length - 1] = snapshot;
+    }
+  }
+
+  private async syncTrustToERC8004(): Promise<void> {
+    if (!this.erc8004Integration) return;
+
+    for (const [agentId, ps] of this.state.playerStates) {
+      const trustScore = this.trustGraph.getGlobalScore(agentId);
+      try {
+        await this.erc8004Integration.syncTrustToERC8004(agentId, trustScore);
+      } catch (error) {
+        console.warn(`Failed to sync trust for agent ${agentId}:`, error);
+      }
     }
   }
 
