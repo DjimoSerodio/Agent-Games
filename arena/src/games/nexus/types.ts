@@ -1,5 +1,5 @@
 /**
- * Nexus Game Types
+ * Comedy of the Commons Game Types
  *
  * The flagship coordination game: resource trading on a hex grid
  * with trust mechanics, shared crises, and per-move fees.
@@ -17,7 +17,7 @@ export type TerrainType =
   | "mountains" // Produces Ore
   | "rivers"    // Produces Energy
   | "wasteland" // Produces nothing
-  | "nexus";    // Produces any (wild)
+  | "commons";  // Produces any (wild)
 
 export type ResourceType =
   | "grain"
@@ -33,7 +33,7 @@ export const TERRAIN_RESOURCE: Record<TerrainType, ResourceType | null> = {
   mountains: "ore",
   rivers: "energy",
   wasteland: null,
-  nexus: null, // Special handling
+  commons: null, // Special handling
 };
 
 export interface HexCoord {
@@ -87,6 +87,24 @@ export type RegionBiome =
   | "farmland"
   | "volcanic"
   | "riverland";
+
+/**
+ * Which resources each biome can produce.
+ * Desert never produces water/timber. Farmland never produces ore/energy. Etc.
+ */
+export const BIOME_ALLOWED_RESOURCES: Record<RegionBiome, ResourceType[]> = {
+  fjord:        ["water", "fish", "ore"],
+  taiga:        ["timber", "water"],
+  steppe:       ["grain", "energy"],
+  wetland:      ["water", "fish", "grain"],
+  highland:     ["ore", "energy"],
+  desert:       ["energy", "ore"],
+  rainforest:   ["timber", "water", "grain"],
+  archipelago:  ["fish", "water", "ore", "energy"],
+  farmland:     ["grain", "water", "timber"],
+  volcanic:     ["energy", "ore"],
+  riverland:    ["water", "fish", "grain"],
+};
 
 export interface WorldMapAssets {
   frame: string;
@@ -146,13 +164,14 @@ export interface WorldMap {
   ecosystems: WorldEcosystem[];
   assets: WorldMapAssets;
   startingRegionIds: string[];
+  hexSize: number;
 }
 
 // ============================================================
 // Structures
 // ============================================================
 
-export type VertexStructure = "settlement" | "city" | "beacon" | "trade_post";
+export type VertexStructure = "village" | "township" | "city" | "beacon" | "trade_post";
 
 export interface StructureCost {
   grain: number;
@@ -165,15 +184,17 @@ export interface StructureCost {
 
 export const STRUCTURE_COSTS: Record<VertexStructure | "road", StructureCost> = {
   road:       { grain: 1, timber: 1, ore: 0, fish: 0, water: 0, energy: 0 },
-  settlement: { grain: 1, timber: 1, ore: 1, fish: 0, water: 1, energy: 0 },
+  village:    { grain: 1, timber: 1, ore: 1, fish: 0, water: 1, energy: 0 },
+  township:   { grain: 2, timber: 1, ore: 1, fish: 0, water: 1, energy: 0 },
   city:       { grain: 2, timber: 0, ore: 2, fish: 0, water: 1, energy: 0 },
   beacon:     { grain: 0, timber: 0, ore: 1, fish: 0, water: 1, energy: 1 },
   trade_post: { grain: 0, timber: 1, ore: 0, fish: 1, water: 1, energy: 0 },
 };
 
 export const STRUCTURE_VP: Record<VertexStructure, number> = {
-  settlement: 1,
-  city: 2,
+  village: 1,
+  township: 2,
+  city: 3,
   beacon: 1,
   trade_post: 0,
 };
@@ -212,6 +233,23 @@ export const RESOURCE_NAMES: ResourceType[] = [
 export const RESOURCE_CAP = 14; // Max total resources
 
 // ============================================================
+// Armies
+// ============================================================
+
+export interface ArmyState {
+  id: string;
+  owner: AgentId;
+  position: HexCoord; // Hex where army is stationed
+  count: number; // Number of army units
+}
+
+export const ARMY_COST: ResourceInventory = { grain: 0, timber: 0, ore: 1, fish: 0, water: 0, energy: 1 }; // Cost to build 1 army unit
+
+export const ARMY_ATTACK_COST_PER_DISTANCE = 0.5; // Energy cost per hex distance for attacking
+
+export type ArmyActionType = "build_army" | "move_army" | "attack_structure";
+
+// ============================================================
 // Production Wheel
 // ============================================================
 
@@ -224,7 +262,7 @@ export const PRODUCTION_WHEEL = [
 // Crisis Events
 // ============================================================
 
-export type CrisisType = "blight" | "storm" | "famine" | "nexus_surge" | "the_rift";
+export type CrisisType = "blight" | "storm" | "famine" | "current_surge" | "the_rift";
 
 export interface CrisisEvent {
   type: CrisisType;
@@ -273,8 +311,8 @@ export const CRISIS_DEFINITIONS: Record<CrisisType, Omit<CrisisEvent, "contribut
     rewardInfluence: 2,
     penaltyDescription: "Resource cap reduced to 5 for 3 rounds",
   },
-  nexus_surge: {
-    type: "nexus_surge",
+  current_surge: {
+    type: "current_surge",
     name: "Current Surge",
     description: "The continental grid is overcharging. Contribute Energy, Ore, and Water to stabilize it.",
     threshold: { grain: 0, timber: 0, ore: 3, fish: 0, water: 1, energy: 4 },
@@ -297,10 +335,11 @@ export const CRISIS_DEFINITIONS: Record<CrisisType, Omit<CrisisEvent, "contribut
 // Actions
 // ============================================================
 
-export type NexusActionType =
+export type ComedyActionType =
   | "build_road"
-  | "build_settlement"
-  | "build_city"
+  | "build_village"
+  | "upgrade_township"
+  | "upgrade_city"
   | "build_beacon"
   | "build_trade_post"
   | "trade_player"
@@ -310,10 +349,13 @@ export type NexusActionType =
   | "restore_ecosystem"
   | "sabotage"
   | "crisis_contribute"
+  | "build_army"
+  | "move_army"
+  | "attack_structure"
   | "pass";
 
-export interface NexusAction extends Action {
-  type: NexusActionType;
+export interface ComedyAction extends Action {
+  type: ComedyActionType;
   params: {
     // For building: location
     location?: HexCoord | { hexes: HexCoord[] };
@@ -336,6 +378,11 @@ export interface NexusAction extends Action {
     ecosystemId?: string;
     extractionLevel?: ExtractionLevel;
     restoration?: Partial<ResourceInventory>;
+    // For army actions
+    armyId?: string;
+    targetStructureIndex?: number;
+    // For upgrades
+    upgradeTargetIndex?: number;
   };
 }
 
@@ -343,17 +390,19 @@ export interface NexusAction extends Action {
 // Player State
 // ============================================================
 
-export interface NexusPlayerState {
+export interface ComedyPlayerState {
   id: AgentId;
   resources: ResourceInventory;
   influence: number;
   structures: {
-    settlements: HexVertex[];
+    villages: HexVertex[];
+    townships: HexVertex[];
     cities: HexVertex[];
     beacons: HexVertex[];
     tradePosts: HexVertex[];
     roads: HexEdge[];
   };
+  armies: ArmyState[];
   vp: number;
   longestRoad: number;
   revealedHexes: Set<HexCoord>;
@@ -548,7 +597,7 @@ export interface CommonsHealthSnapshot {
 // Game State
 // ============================================================
 
-export interface NexusGameState extends GameState {
+export interface ComedyGameState extends GameState {
   // Map
   hexGrid: Map<string, HexTile>; // key = "q,r"
   worldMap: WorldMap;
@@ -556,7 +605,7 @@ export interface NexusGameState extends GameState {
   edges: HexEdge[];
 
   // Players
-  playerStates: Map<AgentId, NexusPlayerState>;
+  playerStates: Map<AgentId, ComedyPlayerState>;
 
   // Production
   productionWheel: number[];
@@ -604,7 +653,7 @@ export interface NexusGameState extends GameState {
 // Agent View (what agents can see)
 // ============================================================
 
-export interface NexusAgentView {
+export interface ComedyAgentView {
   gameId: GameId;
   round: number;
   phase: string;
@@ -621,7 +670,7 @@ export interface NexusAgentView {
   myResources: ResourceInventory;
   myInfluence: number;
   myVP: number;
-  myStructures: NexusPlayerState["structures"];
+  myStructures: ComedyPlayerState["structures"];
 
   // Public info
   allScores: Record<AgentId, number>; // VP is public
@@ -636,6 +685,9 @@ export interface NexusAgentView {
   // Crisis
   activeCrisis: CrisisEvent | null;
 
+  // Armies (all armies visible to all agents)
+  visibleArmies: ArmyState[];
+
   // Commitment ledger
   visibleCommitments: CommitmentRecord[];
   visibleAttestations: AttestationRecord[];
@@ -649,7 +701,48 @@ export interface NexusAgentView {
   slashedPrizePool: string;
   carryoverPrizePool: string;
   currentCommonsHealth: CommonsHealthSnapshot;
+
+  // Tournament context (what agents can see)
+  tournamentDay: number; // Visible: "Day 1", "Day 2" - but actual game count is hidden
+  tournamentPrizePool: string; // Wei as string - total accumulated
+  cumulativeScores: Record<AgentId, number>; // Cumulative scores across session
 }
+
+// ============================================================
+// Tournament / Session State
+// ============================================================
+
+export interface TournamentState {
+  sessionId: string;
+  gamesPlayed: number; // Hidden from agents
+  continuationProbability: number; // Hidden - probability each game continues
+  tournamentPrizePool: bigint; // Accumulates across games
+  cumulativeScores: Record<AgentId, number>; // Cumulative across session
+  currentGameId: GameId | null;
+  isActive: boolean;
+}
+
+export interface TournamentConfig {
+  continuationProbability: number; // e.g., 0.95 = each game has 95% chance to continue
+  entryFeePerGameWei: bigint;
+  prizeDistribution: {
+    first: number; // bps, e.g., 5000 = 50%
+    second: number;
+    third: number;
+    fourth: number;
+  };
+}
+
+export const DEFAULT_TOURNAMENT_CONFIG: TournamentConfig = {
+  continuationProbability: 0.95,
+  entryFeePerGameWei: BigInt(50000000000000000), // 0.05 ETH
+  prizeDistribution: {
+    first: 5000,
+    second: 2500,
+    third: 1500,
+    fourth: 1000,
+  },
+};
 
 // ============================================================
 // Promises (for trust tracking)

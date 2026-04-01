@@ -18,8 +18,8 @@ import {
   MessageType,
 } from "../core/types.js";
 import {
-  NexusAgentView,
-  NexusAction,
+  ComedyAgentView,
+  ComedyAction,
   ResourceType,
   RESOURCE_NAMES,
 } from "../games/nexus/types.js";
@@ -85,7 +85,7 @@ export class SimpleAgent implements GameAgent {
     incomingMessages: Message[],
     round: number,
   ): Promise<Message[]> {
-    const view = state as NexusAgentView;
+    const view = state as ComedyAgentView;
     const messages: Message[] = [];
     this.memory.roundCount = round;
 
@@ -125,8 +125,8 @@ export class SimpleAgent implements GameAgent {
     round: number,
     legalActions: Action[],
   ): Promise<Action[]> {
-    const view = state as NexusAgentView;
-    const actions: NexusAction[] = [];
+    const view = state as ComedyAgentView;
+    const actions: ComedyAction[] = [];
 
     // 1. Crisis contribution (except defectors)
     if (view.activeCrisis && !view.activeCrisis.resolved && this.strategy !== "defector") {
@@ -177,7 +177,7 @@ export class SimpleAgent implements GameAgent {
     for (const outcome of results.outcomes) {
       if (outcome.action.agentId !== this.id) continue;
       if (outcome.action.type === "trade_player" && !outcome.success) {
-        const partnerId = (outcome.action as NexusAction).params.partnerId as AgentId;
+        const partnerId = (outcome.action as ComedyAction).params.partnerId as AgentId;
         if (partnerId) {
           this.memory.lastBehavior[partnerId] = "defected";
           this.memory.enemies.add(partnerId);
@@ -200,7 +200,7 @@ export class SimpleAgent implements GameAgent {
   // Incoming message parsing -- detects trade offers from others
   // ============================================================
 
-  private processIncomingMessages(messages: Message[], view: NexusAgentView): void {
+  private processIncomingMessages(messages: Message[], view: ComedyAgentView): void {
     for (const msg of messages) {
       if (msg.sender === this.id) continue;
 
@@ -248,7 +248,7 @@ export class SimpleAgent implements GameAgent {
   // Strategy-specific negotiation
   // ============================================================
 
-  private negotiateCooperator(view: NexusAgentView): Message[] {
+  private negotiateCooperator(view: ComedyAgentView): Message[] {
     const msgs: Message[] = [];
     const surplus = this.getSurplusResource(view);
     const need = this.getNeededResource(view);
@@ -288,7 +288,7 @@ export class SimpleAgent implements GameAgent {
     return msgs;
   }
 
-  private negotiateDefector(view: NexusAgentView): Message[] {
+  private negotiateDefector(view: ComedyAgentView): Message[] {
     const msgs: Message[] = [];
 
     msgs.push(this.makeMessage(
@@ -319,7 +319,7 @@ export class SimpleAgent implements GameAgent {
     return msgs;
   }
 
-  private negotiateTitForTat(view: NexusAgentView): Message[] {
+  private negotiateTitForTat(view: ComedyAgentView): Message[] {
     const msgs: Message[] = [];
     const surplus = this.getSurplusResource(view);
     const need = this.getNeededResource(view);
@@ -358,7 +358,7 @@ export class SimpleAgent implements GameAgent {
     return msgs;
   }
 
-  private negotiateDiplomat(view: NexusAgentView): Message[] {
+  private negotiateDiplomat(view: ComedyAgentView): Message[] {
     const msgs: Message[] = [];
     const surplus = this.getSurplusResource(view);
     const need = this.getNeededResource(view);
@@ -399,7 +399,7 @@ export class SimpleAgent implements GameAgent {
     return msgs;
   }
 
-  private negotiateBuilder(view: NexusAgentView): Message[] {
+  private negotiateBuilder(view: ComedyAgentView): Message[] {
     const msgs: Message[] = [];
     const need = this.getNeededResource(view);
     const surplus = this.getSurplusResource(view);
@@ -431,7 +431,7 @@ export class SimpleAgent implements GameAgent {
     return msgs;
   }
 
-  private negotiateOpportunist(view: NexusAgentView): Message[] {
+  private negotiateOpportunist(view: ComedyAgentView): Message[] {
     const msgs: Message[] = [];
     const myScore = view.myVP;
     const maxOtherScore = Math.max(
@@ -473,7 +473,7 @@ export class SimpleAgent implements GameAgent {
   // Action decisions
   // ============================================================
 
-  private decideTradeAction(view: NexusAgentView, round: number): NexusAction | null {
+  private decideTradeAction(view: ComedyAgentView, round: number): ComedyAction | null {
     // Defectors never follow through on trades
     if (this.strategy === "defector") return null;
 
@@ -505,17 +505,22 @@ export class SimpleAgent implements GameAgent {
     return null;
   }
 
-  private decideBuildAction(view: NexusAgentView, round: number): NexusAction | null {
+  private decideBuildAction(view: ComedyAgentView, round: number): ComedyAction | null {
     const r = view.myResources;
 
-    // Upgrade to city if we have settlements and can afford it
-    if (r.grain >= 2 && r.ore >= 2 && r.water >= 1 && view.myStructures.settlements.length > 0) {
-      return { type: "build_city", agentId: this.id, params: {}, round, timestamp: Date.now() };
+    // Upgrade to city if we have townships and can afford it
+    if (r.grain >= 2 && r.ore >= 2 && r.water >= 1 && view.myStructures.townships.length >= 2) {
+      return { type: "upgrade_city", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
-    // Build settlement
+    // Upgrade to township if we have 3+ villages and can afford it
+    if (r.grain >= 2 && r.timber >= 1 && r.ore >= 1 && r.water >= 1 && view.myStructures.villages.length >= 3) {
+      return { type: "upgrade_township", agentId: this.id, params: {}, round, timestamp: Date.now() };
+    }
+
+    // Build village
     if (r.grain >= 1 && r.timber >= 1 && r.ore >= 1 && r.water >= 1) {
-      return { type: "build_settlement", agentId: this.id, params: {}, round, timestamp: Date.now() };
+      return { type: "build_village", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
     // Build beacon (if diplomat or have excess energy)
@@ -536,7 +541,7 @@ export class SimpleAgent implements GameAgent {
     return null;
   }
 
-  private decideSecondaryAction(view: NexusAgentView, legalActions: Action[], round: number): NexusAction | null {
+  private decideSecondaryAction(view: ComedyAgentView, legalActions: Action[], round: number): ComedyAction | null {
     const accessibleEcosystem = this.getAccessibleEcosystem(view);
 
     if (round <= 3) {
@@ -590,7 +595,7 @@ export class SimpleAgent implements GameAgent {
     return { type: "explore", agentId: this.id, params: {}, round, timestamp: Date.now() };
   }
 
-  private decideCrisisContribution(view: NexusAgentView): Partial<Record<ResourceType, number>> | null {
+  private decideCrisisContribution(view: ComedyAgentView): Partial<Record<ResourceType, number>> | null {
     if (!view.activeCrisis) return null;
     const threshold = view.activeCrisis.threshold;
     const contribution: Partial<Record<ResourceType, number>> = {};
@@ -614,7 +619,7 @@ export class SimpleAgent implements GameAgent {
   // Helpers
   // ============================================================
 
-  private getSurplusResource(view: NexusAgentView): ResourceType | null {
+  private getSurplusResource(view: ComedyAgentView): ResourceType | null {
     const r = view.myResources;
     let maxRes: ResourceType = "grain";
     let maxVal = 0;
@@ -624,7 +629,7 @@ export class SimpleAgent implements GameAgent {
     return maxVal >= 2 ? maxRes : null;
   }
 
-  private getNeededResource(view: NexusAgentView): ResourceType | null {
+  private getNeededResource(view: ComedyAgentView): ResourceType | null {
     const r = view.myResources;
     let minRes: ResourceType = "grain";
     let minVal = Infinity;
@@ -634,7 +639,7 @@ export class SimpleAgent implements GameAgent {
     return minVal < 2 ? minRes : null;
   }
 
-  private getLeadingAgent(view: NexusAgentView): AgentId | null {
+  private getLeadingAgent(view: ComedyAgentView): AgentId | null {
     let maxScore = -1;
     let leader: AgentId | null = null;
     for (const [id, score] of Object.entries(view.allScores)) {
@@ -643,10 +648,11 @@ export class SimpleAgent implements GameAgent {
     return leader;
   }
 
-  private getAccessibleEcosystem(view: NexusAgentView) {
+  private getAccessibleEcosystem(view: ComedyAgentView) {
     const controlled = new Set<string>();
     const structures = [
-      ...view.myStructures.settlements,
+      ...view.myStructures.villages,
+      ...view.myStructures.townships,
       ...view.myStructures.cities,
       ...view.myStructures.beacons,
       ...view.myStructures.tradePosts,
@@ -659,7 +665,7 @@ export class SimpleAgent implements GameAgent {
       .sort((left, right) => left.health - right.health)[0] || null;
   }
 
-  private canRestore(view: NexusAgentView): boolean {
+  private canRestore(view: ComedyAgentView): boolean {
     return (view.myResources.water || 0) >= 1 && (((view.myResources.energy || 0) >= 1) || ((view.myResources.grain || 0) >= 1));
   }
 

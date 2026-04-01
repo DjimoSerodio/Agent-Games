@@ -18,9 +18,9 @@ import {
   RoundResult,
 } from "../core/types.js";
 import {
-  NexusAgentView,
-  NexusAction,
-  NexusActionType,
+  ComedyAgentView,
+  ComedyAction,
+  ComedyActionType,
   ResourceType,
   RESOURCE_NAMES,
 } from "../games/nexus/types.js";
@@ -55,10 +55,14 @@ const SUBMIT_ACTIONS_TOOL: Anthropic.Tool = {
               type: "string",
               enum: [
                 "build_road",
-                "build_settlement",
-                "build_city",
+                "build_village",
+                "upgrade_township",
+                "upgrade_city",
                 "build_beacon",
                 "build_trade_post",
+                "build_army",
+                "move_army",
+                "attack_structure",
                 "trade_player",
                 "trade_bank",
                 "explore",
@@ -243,17 +247,19 @@ Comedy of the Commons is a multiplayer resource-trading strategy game on a livin
 
 ## Resources
 Six types: Grain, Timber, Ore, Fish, Water, Energy. Max 14 total resources per player.
-Regions produce one primary resource each round based on the production wheel and your settlement/city locations.
+Regions produce one primary resource each round based on the production wheel and your village/township/city locations.
 
 ## Structures & Costs
 - Road: 1 Grain + 1 Timber (0 VP)
-- Settlement: 1 Grain + 1 Timber + 1 Ore + 1 Water (1 VP)
-- City (upgrade from settlement): 2 Grain + 2 Ore + 1 Water (2 VP total)
+- Village: 1 Grain + 1 Timber + 1 Ore + 1 Water (1 VP)
+- Township (upgrade from village): 2 Grain + 1 Timber + 1 Ore + 1 Water (2 VP total, requires 3 villages)
+- City (upgrade from township): 2 Grain + 2 Ore + 1 Water (3 VP total, requires 2 townships)
 - Beacon: 1 Ore + 1 Water + 1 Energy (1 VP, boosts visibility and influence)
 - Trade Post: 1 Timber + 1 Fish + 1 Water (0 VP, improves bank trades)
 
 ## Actions (max 2 per round)
-- build_road, build_settlement, build_city, build_beacon, build_trade_post
+- build_road, build_village, upgrade_township, upgrade_city, build_beacon, build_trade_post
+- build_army, move_army, attack_structure (armies cost 1 Ore + 1 Energy to build)
 - trade_player: exchange resources with another player (both must agree)
 - trade_bank: trade 4 of one resource for 1 of another (trade posts improve rate)
 - explore: scout the map edge / reveal regional context
@@ -341,7 +347,7 @@ Damaging the commons can slash the final payable prize pool and roll that amount
     round: number,
   ): Promise<Message[]> {
     this.currentRound = round;
-    const view = state as NexusAgentView;
+    const view = state as ComedyAgentView;
 
     const systemPrompt = this.buildSystemPrompt("negotiation");
     const userPrompt = this.buildNegotiationPrompt(view, incomingMessages);
@@ -392,7 +398,7 @@ Damaging the commons can slash the final payable prize pool and roll that amount
     _legalActions: Action[],
   ): Promise<Action[]> {
     this.currentRound = round;
-    const view = state as NexusAgentView;
+    const view = state as ComedyAgentView;
 
     const systemPrompt = this.buildSystemPrompt("action");
     const userPrompt = this.buildActionPrompt(view);
@@ -506,7 +512,7 @@ Damaging the commons can slash the final payable prize pool and roll that amount
   }
 
   private buildNegotiationPrompt(
-    view: NexusAgentView,
+    view: ComedyAgentView,
     incomingMessages: Message[],
   ): string {
     const parts: string[] = [
@@ -515,7 +521,7 @@ Damaging the commons can slash the final payable prize pool and roll that amount
       "### Your State",
       `Resources: ${JSON.stringify(view.myResources)}`,
       `VP: ${view.myVP} | Influence: ${view.myInfluence}`,
-      `Structures: settlements=${view.myStructures.settlements.length}, cities=${view.myStructures.cities.length}, beacons=${view.myStructures.beacons.length}, tradePosts=${view.myStructures.tradePosts.length}, roads=${view.myStructures.roads.length}`,
+      `Structures: villages=${view.myStructures.villages.length}, townships=${view.myStructures.townships.length}, cities=${view.myStructures.cities.length}, beacons=${view.myStructures.beacons.length}, tradePosts=${view.myStructures.tradePosts.length}, roads=${view.myStructures.roads.length}`,
       "",
       "### Scores",
       ...Object.entries(view.allScores).map(
@@ -600,14 +606,14 @@ Damaging the commons can slash the final payable prize pool and roll that amount
     return parts.join("\n");
   }
 
-  private buildActionPrompt(view: NexusAgentView): string {
+  private buildActionPrompt(view: ComedyAgentView): string {
     const parts: string[] = [
       `## Round ${view.round} — Action Phase`,
       "",
       "### Your State",
       `Resources: ${JSON.stringify(view.myResources)}`,
       `VP: ${view.myVP} | Influence: ${view.myInfluence}`,
-      `Structures: settlements=${view.myStructures.settlements.length}, cities=${view.myStructures.cities.length}, beacons=${view.myStructures.beacons.length}, tradePosts=${view.myStructures.tradePosts.length}, roads=${view.myStructures.roads.length}`,
+      `Structures: villages=${view.myStructures.villages.length}, townships=${view.myStructures.townships.length}, cities=${view.myStructures.cities.length}, beacons=${view.myStructures.beacons.length}, tradePosts=${view.myStructures.tradePosts.length}, roads=${view.myStructures.roads.length}`,
       "",
       "### What You Can Afford",
     ];
@@ -617,14 +623,11 @@ Damaging the commons can slash the final payable prize pool and roll that amount
     const affordability: string[] = [];
     if (r.grain >= 1 && r.timber >= 1) affordability.push("road (1G+1T)");
     if (r.grain >= 1 && r.timber >= 1 && r.ore >= 1 && r.water >= 1)
-      affordability.push("settlement (1G+1T+1O+1W)");
-    if (
-      r.grain >= 2 &&
-      r.ore >= 2 &&
-      r.water >= 1 &&
-      view.myStructures.settlements.length > 0
-    )
-      affordability.push("city (2G+2O+1W, upgrades a settlement)");
+      affordability.push("village (1G+1T+1O+1W)");
+    if (r.grain >= 2 && r.timber >= 1 && r.ore >= 1 && r.water >= 1 && view.myStructures.villages.length >= 3)
+      affordability.push("township (2G+1T+1O+1W, upgrade 3 villages)");
+    if (r.grain >= 2 && r.ore >= 2 && r.water >= 1 && view.myStructures.townships.length >= 2)
+      affordability.push("city (2G+2O+1W, upgrade 2 townships)");
     if (r.ore >= 1 && r.energy >= 1 && r.water >= 1) affordability.push("beacon (1O+1W+1E)");
     if (r.timber >= 1 && r.fish >= 1 && r.water >= 1)
       affordability.push("trade_post (1T+1F+1W)");
@@ -848,10 +851,14 @@ Damaging the commons can slash the final payable prize pool and roll that amount
 
   private readonly VALID_ACTION_TYPES: Set<string> = new Set([
     "build_road",
-    "build_settlement",
-    "build_city",
+    "build_village",
+    "upgrade_township",
+    "upgrade_city",
     "build_beacon",
     "build_trade_post",
+    "build_army",
+    "move_army",
+    "attack_structure",
     "trade_player",
     "trade_bank",
     "explore",
@@ -865,14 +872,14 @@ Damaging the commons can slash the final payable prize pool and roll that amount
   private parseActions(
     raw: Array<{ type: string; params: Record<string, unknown> }>,
     round: number,
-  ): NexusAction[] {
-    const actions: NexusAction[] = [];
+  ): ComedyAction[] {
+    const actions: ComedyAction[] = [];
 
     for (const item of raw) {
       if (!this.VALID_ACTION_TYPES.has(item.type)) continue;
 
       actions.push({
-        type: item.type as NexusActionType,
+        type: item.type as ComedyActionType,
         agentId: this.id,
         params: item.params ?? {},
         round,
@@ -883,7 +890,7 @@ Damaging the commons can slash the final payable prize pool and roll that amount
     return actions;
   }
 
-  private fallbackActions(round: number): NexusAction[] {
+  private fallbackActions(round: number): ComedyAction[] {
     console.log(
       `[LLMAgent ${this.id}] Falling back to safe default actions (explore + pass)`,
     );
@@ -906,14 +913,14 @@ Damaging the commons can slash the final payable prize pool and roll that amount
   }
 
   private async retryAction(
-    view: NexusAgentView,
+    view: ComedyAgentView,
     round: number,
-  ): Promise<NexusAction[]> {
+  ): Promise<ComedyAction[]> {
     const systemPrompt = this.buildSystemPrompt("action");
     const userPrompt = [
       "Your previous action response was invalid. Please try again.",
-      "Remember: each action must have a valid 'type' (one of: build_road, build_settlement, build_city, build_beacon, build_trade_post, trade_player, trade_bank, explore, extract_commons, restore_ecosystem, sabotage, crisis_contribute, pass).",
-      "And a 'params' object (can be {} for simple actions).",
+      "Remember: each action must have a valid 'type' (one of: build_road, build_village, upgrade_township, upgrade_city, build_beacon, build_trade_post, build_army, move_army, attack_structure, trade_player, trade_bank, explore, extract_commons, restore_ecosystem, sabotage, crisis_contribute, pass).",
+      "And a 'params' object (can be {} for simple actions, or {armyId: string, targetHex: {q,r}} for move_army, or {targetAgent: string} for attack_structure).",
       "",
       this.buildActionPrompt(view),
     ].join("\n");
@@ -962,7 +969,7 @@ Damaging the commons can slash the final payable prize pool and roll that amount
     }));
   }
 
-  private updateMemoryActions(round: number, actions: NexusAction[]): void {
+  private updateMemoryActions(round: number, actions: ComedyAction[]): void {
     const entry = this.getOrCreateMemoryEntry(round);
     entry.myActions = actions.map((a) => ({ type: a.type, params: a.params }));
   }
@@ -1077,7 +1084,7 @@ Damaging the commons can slash the final payable prize pool and roll that amount
 // ============================================================
 
 /**
- * Create an LLM-powered agent for the Nexus coordination game.
+ * Create an LLM-powered agent for the Comedy of the Commons coordination game.
  *
  * @param personaPath - Path to a markdown file containing the agent's persona/personality
  * @param agentId - Unique identifier for this agent

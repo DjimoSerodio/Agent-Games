@@ -1,8 +1,8 @@
 /**
- * Nexus Game Engine
+ * Comedy of the Commons Game Engine
  *
  * The flagship coordination game implementation.
- * Extends the abstract GameEngine with Nexus-specific logic.
+ * Extends the abstract GameEngine with Comedy-specific logic.
  */
 
 import { v4 as uuid } from "uuid";
@@ -19,10 +19,10 @@ import {
   Message,
 } from "../../core/types.js";
 import {
-  NexusGameState,
-  NexusAgentView,
-  NexusAction,
-  NexusPlayerState,
+  ComedyGameState,
+  ComedyAgentView,
+  ComedyAction,
+  ComedyPlayerState,
   ResourceInventory,
   ResourceType,
   CrisisEvent,
@@ -31,6 +31,7 @@ import {
   STRUCTURE_COSTS,
   STRUCTURE_VP,
   TERRAIN_RESOURCE,
+  BIOME_ALLOWED_RESOURCES,
   PRODUCTION_WHEEL,
   RESOURCE_CAP,
   EMPTY_INVENTORY,
@@ -49,6 +50,11 @@ import {
   EcosystemState,
   EcosystemExtractionRecord,
   ExtractionLevel,
+  ArmyState,
+  ARMY_COST,
+  ARMY_ATTACK_COST_PER_DISTANCE,
+  HexCoord,
+  HexVertex,
 } from "./types.js";
 import {
   hexKey,
@@ -64,7 +70,7 @@ import {
   projectWorldMapToHexGrid,
 } from "./world-map.js";
 
-export class NexusEngine extends GameEngine<NexusGameState> {
+export class ComedyEngine extends GameEngine<ComedyGameState> {
   private static pendingPrizeCarryoverWei = 0n;
 
   private trustGraph: TrustGraph;
@@ -93,10 +99,10 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   // Abstract method implementations
   // ============================================================
 
-  protected createInitialState(config: GameConfig): NexusGameState {
+  protected createInitialState(config: GameConfig): ComedyGameState {
     const worldMap = createComedyWorldMap();
     const hexGrid = projectWorldMapToHexGrid(worldMap);
-    const carryoverPrizePool = NexusEngine.takePrizeCarryover();
+    const carryoverPrizePool = ComedyEngine.takePrizeCarryover();
 
     // Determine hidden max rounds (20-30, agents don't know exact number)
     const actualMaxRounds = 20 + Math.floor(Math.random() * 11); // 20-30
@@ -186,18 +192,20 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       const agentId = this.state.players[i];
       const startPos = startingPositions[i % startingPositions.length];
 
-      const playerState: NexusPlayerState = {
+      const playerState: ComedyPlayerState = {
         id: agentId,
         resources: { grain: 2, timber: 2, ore: 1, fish: 1, water: 1, energy: 1 },
         influence: 0,
         structures: {
-          settlements: [],
+          villages: [],
+          townships: [],
           cities: [],
           beacons: [],
           tradePosts: [],
           roads: [],
         },
-        vp: 1, // Start with 1 VP for initial settlement
+        armies: [],
+        vp: 1, // Start with 1 VP for initial village
         longestRoad: 0,
         revealedHexes: new Set(),
       };
@@ -219,11 +227,11 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         }
       }
 
-      // Place initial settlement at starting position
+      // Place initial village at starting position
       const startRegion = getRegionByCoord(this.state.worldMap, startPos);
-      playerState.structures.settlements.push({
+      playerState.structures.villages.push({
         hexes: [startPos],
-        structure: "settlement",
+        structure: "village",
         owner: agentId,
         regionId: startRegion?.id,
       });
@@ -235,12 +243,17 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     await super.initializeAgents();
 
     this.refreshCommonsHealth();
+  }
 
-    // Emit hex grid data so the frontend can render the actual map
+  /**
+   * Called after game.started — emit map data so the frontend receives it
+   * AFTER it has processed game.started (which resets state).
+   */
+  protected override onGameStarted(): void {
     this.emitHexGridData();
   }
 
-  protected getAgentView(agentId: AgentId): NexusAgentView {
+  protected getAgentView(agentId: AgentId): ComedyAgentView {
     const playerState = this.state.playerStates.get(agentId);
     if (!playerState) throw new Error(`Unknown agent: ${agentId}`);
 
@@ -295,6 +308,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       wheelPosition: this.state.wheelPosition,
       nextProduction,
       activeCrisis: this.state.activeCrisis,
+      visibleArmies: Array.from(this.state.playerStates.values()).flatMap(ps => ps.armies),
       visibleCommitments: this.getVisibleCommitments(agentId),
       visibleAttestations: this.getVisibleAttestations(agentId),
       messageHistory: this.filterMessagesForAgent(agentId, this.messageLog),
@@ -303,6 +317,9 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       slashedPrizePool: this.state.slashedPrizePool.toString(),
       carryoverPrizePool: this.state.carryoverPrizePool.toString(),
       currentCommonsHealth: this.state.currentCommonsHealth,
+      tournamentDay: 1,
+      tournamentPrizePool: this.state.prizePool.toString(),
+      cumulativeScores: { ...this.state.scores },
     };
   }
 
@@ -310,7 +327,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     const ps = this.state.playerStates.get(agentId);
     if (!ps) return [];
 
-    const actions: NexusAction[] = [];
+    const actions: ComedyAction[] = [];
     const r = ps.resources;
 
     // Build actions (check if player has resources)
@@ -318,16 +335,53 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       actions.push(this.makeAction("build_road", agentId));
     }
     if (r.grain >= 1 && r.timber >= 1 && r.ore >= 1 && r.water >= 1) {
-      actions.push(this.makeAction("build_settlement", agentId));
+      actions.push(this.makeAction("build_village", agentId));
     }
-    if (r.grain >= 2 && r.ore >= 2 && r.water >= 1 && ps.structures.settlements.length > 0) {
-      actions.push(this.makeAction("build_city", agentId));
+    // Upgrade to township: 3 villages OR 1 village with army stationed
+    if (r.grain >= 2 && r.timber >= 1 && r.ore >= 1 && r.water >= 1 && ps.structures.villages.length >= 3) {
+      actions.push(this.makeAction("upgrade_township", agentId));
+    }
+    // Upgrade to city: 2 townships OR 1 township with army stationed
+    if (r.grain >= 2 && r.ore >= 2 && r.water >= 1 && ps.structures.townships.length >= 2) {
+      actions.push(this.makeAction("upgrade_city", agentId));
     }
     if (r.ore >= 1 && r.energy >= 1 && r.water >= 1) {
       actions.push(this.makeAction("build_beacon", agentId));
     }
     if (r.timber >= 1 && r.fish >= 1 && r.water >= 1) {
       actions.push(this.makeAction("build_trade_post", agentId));
+    }
+
+    // Army actions
+    // Build army: costs 1 Ore + 1 Energy per unit
+    if (r.ore >= 1 && r.energy >= 1) {
+      actions.push(this.makeAction("build_army", agentId));
+    }
+    // Move army: if player has armies, they can move them
+    for (const army of ps.armies) {
+      if (army.owner === agentId) {
+        actions.push(this.makeAction("move_army", agentId, { armyId: army.id }));
+        break; // Only need one move action option per agent
+      }
+    }
+    // Attack: if player has armies, they can attack enemy structures
+    for (const army of ps.armies) {
+      if (army.owner === agentId && army.count > 0) {
+        // Find enemy structures
+        for (const [otherId, otherPs] of this.state.playerStates) {
+          if (otherId === agentId) continue;
+          const enemyStructures = [
+            ...otherPs.structures.villages,
+            ...otherPs.structures.townships,
+            ...otherPs.structures.cities,
+          ];
+          if (enemyStructures.length > 0) {
+            actions.push(this.makeAction("attack_structure", agentId, { targetAgent: otherId }));
+            break; // Only need one attack action option
+          }
+        }
+        break;
+      }
     }
 
     // Trade with other players (always available if you have resources)
@@ -407,6 +461,12 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       const resource = region?.primaryResource ?? tile.primaryResource ?? TERRAIN_RESOURCE[tile.terrain];
       if (!resource) continue;
 
+      // Enforce biome-resource constraints: skip if biome forbids this resource
+      if (region?.biome) {
+        const allowed = BIOME_ALLOWED_RESOURCES[region.biome];
+        if (allowed && !allowed.includes(resource)) continue;
+      }
+
       // Find players with structures adjacent to this hex
       for (const [agentId, ps] of this.state.playerStates) {
         const hasAdjacentStructure = this.hasStructureNearHex(agentId, tile.coord);
@@ -468,7 +528,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     }
 
     // Track submitted trades to match them
-    const tradeSubmissions = new Map<string, NexusAction>();
+    const tradeSubmissions = new Map<string, ComedyAction>();
 
     // Process each agent's actions
     for (const [agentId, agentActions] of actions) {
@@ -476,7 +536,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       if (!ps) continue;
 
       // Limit to 2 actions per turn
-      const limitedActions = agentActions.slice(0, 2) as NexusAction[];
+      const limitedActions = agentActions.slice(0, 2) as ComedyAction[];
 
       for (const action of limitedActions) {
         this.state.moveCount++;
@@ -583,58 +643,80 @@ export class NexusEngine extends GameEngine<NexusGameState> {
 
   private resolveAction(
     agentId: AgentId,
-    action: NexusAction,
-    tradeSubmissions: Map<string, NexusAction>,
+    action: ComedyAction,
+    tradeSubmissions: Map<string, ComedyAction>,
     trustUpdates: TrustUpdate[],
     sabotageEvents: Array<{ from: AgentId; to: AgentId; round: number }>,
   ): ActionOutcome {
     const ps = this.state.playerStates.get(agentId)!;
 
     switch (action.type) {
-      case "build_settlement": {
-        const cost = STRUCTURE_COSTS.settlement;
+      case "build_village": {
+        const cost = STRUCTURE_COSTS.village;
         if (!this.canAfford(ps.resources, cost)) {
-          return this.failOutcome(action, "Insufficient resources for settlement");
+          return this.failOutcome(action, "Insufficient resources for village");
         }
-        // Find a valid location (enforces distance rule: 2+ hexes from other settlements/cities)
-        const settlementHex = this.findBuildableHex(agentId, true);
-        if (!settlementHex) {
-          return this.failOutcome(action, "No valid location for settlement (distance rule)");
+        // Find a valid location (enforces distance rule: 2+ hexes from other villages/townships/cities)
+        const villageHex = this.findBuildableHex(agentId, true);
+        if (!villageHex) {
+          return this.failOutcome(action, "No valid location for village (distance rule)");
         }
         this.deductResources(ps, cost);
-        const settlementRegion = getRegionByCoord(this.state.worldMap, settlementHex);
-        ps.structures.settlements.push({
-          hexes: [settlementHex],
-          structure: "settlement",
+        const villageRegion = getRegionByCoord(this.state.worldMap, villageHex);
+        ps.structures.villages.push({
+          hexes: [villageHex],
+          structure: "village",
           owner: agentId,
-          regionId: settlementRegion?.id,
+          regionId: villageRegion?.id,
         });
-        // Reveal hexes around the new settlement
-        this.revealHexesAround(agentId, settlementHex);
-        return this.successOutcome(action, "Built a settlement", [
-          { type: "vp_change", target: agentId, params: { amount: STRUCTURE_VP.settlement } },
+        // Reveal hexes around the new village
+        this.revealHexesAround(agentId, villageHex);
+        return this.successOutcome(action, "Built a village", [
+          { type: "vp_change", target: agentId, params: { amount: STRUCTURE_VP.village } },
         ]);
       }
 
-      case "build_city": {
+      case "upgrade_township": {
+        const cost = STRUCTURE_COSTS.township;
+        if (!this.canAfford(ps.resources, cost)) {
+          return this.failOutcome(action, "Insufficient resources for township");
+        }
+        if (ps.structures.villages.length === 0) {
+          return this.failOutcome(action, "No villages to upgrade");
+        }
+        this.deductResources(ps, cost);
+        // Remove oldest village and add a township in its place
+        const upgradedVillage = ps.structures.villages.shift()!;
+        ps.structures.townships.push({
+          hexes: upgradedVillage.hexes,
+          structure: "township",
+          owner: agentId,
+          regionId: upgradedVillage.regionId,
+        });
+        return this.successOutcome(action, "Upgraded village to township", [
+          { type: "vp_change", target: agentId, params: { amount: STRUCTURE_VP.township - STRUCTURE_VP.village } },
+        ]);
+      }
+
+      case "upgrade_city": {
         const cost = STRUCTURE_COSTS.city;
         if (!this.canAfford(ps.resources, cost)) {
           return this.failOutcome(action, "Insufficient resources for city");
         }
-        if (ps.structures.settlements.length === 0) {
-          return this.failOutcome(action, "No settlements to upgrade");
+        if (ps.structures.townships.length === 0) {
+          return this.failOutcome(action, "No townships to upgrade");
         }
         this.deductResources(ps, cost);
-        // Remove oldest settlement and add a city in its place
-        const upgradedSettlement = ps.structures.settlements.shift()!;
+        // Remove oldest township and add a city in its place
+        const upgradedTownship = ps.structures.townships.shift()!;
         ps.structures.cities.push({
-          hexes: upgradedSettlement.hexes,
+          hexes: upgradedTownship.hexes,
           structure: "city",
           owner: agentId,
-          regionId: upgradedSettlement.regionId,
+          regionId: upgradedTownship.regionId,
         });
-        return this.successOutcome(action, "Upgraded settlement to city", [
-          { type: "vp_change", target: agentId, params: { amount: 1 } },
+        return this.successOutcome(action, "Upgraded township to city", [
+          { type: "vp_change", target: agentId, params: { amount: STRUCTURE_VP.city - STRUCTURE_VP.township } },
         ]);
       }
 
@@ -854,18 +936,40 @@ export class NexusEngine extends GameEngine<NexusGameState> {
 
         const targetPs = this.state.playerStates.get(targetId)!;
 
-        // Try to destroy a road first, then downgrade a settlement
+        // Try to destroy a road first, then downgrade a settlement/village
         let description: string;
         if (targetPs.structures.roads.length > 0) {
           // Destroy the most recently built road
           targetPs.structures.roads.pop();
           targetPs.longestRoad = Math.max(0, targetPs.longestRoad - 1);
           description = `Sabotaged ${targetId}'s road (destroyed)`;
-        } else if (targetPs.structures.settlements.length > 0) {
-          // No roads to destroy — damage a settlement (remove it, -1 VP)
-          targetPs.structures.settlements.pop();
+        } else if (targetPs.structures.villages.length > 0) {
+          // No roads to destroy — damage a village (remove it, -1 VP)
+          targetPs.structures.villages.pop();
           targetPs.vp = Math.max(0, targetPs.vp - 1);
-          description = `Sabotaged ${targetId}'s settlement (destroyed, -1 VP)`;
+          description = `Sabotaged ${targetId}'s village (destroyed, -1 VP)`;
+        } else if (targetPs.structures.townships.length > 0) {
+          // Downgrade township to village
+          const township = targetPs.structures.townships.pop()!;
+          targetPs.structures.villages.push({
+            hexes: township.hexes,
+            structure: "village",
+            owner: targetId,
+            regionId: township.regionId,
+          });
+          targetPs.vp = Math.max(0, targetPs.vp - (STRUCTURE_VP.township - STRUCTURE_VP.village));
+          description = `Sabotaged ${targetId}'s township (downgraded to village, -1 VP)`;
+        } else if (targetPs.structures.cities.length > 0) {
+          // Downgrade city to township
+          const city = targetPs.structures.cities.pop()!;
+          targetPs.structures.townships.push({
+            hexes: city.hexes,
+            structure: "township",
+            owner: targetId,
+            regionId: city.regionId,
+          });
+          targetPs.vp = Math.max(0, targetPs.vp - (STRUCTURE_VP.city - STRUCTURE_VP.township));
+          description = `Sabotaged ${targetId}'s city (downgraded to township, -1 VP)`;
         } else {
           // Target has nothing to destroy
           ps.resources.energy--;
@@ -929,6 +1033,188 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         return this.failOutcome(action, "No valid resources contributed");
       }
 
+      case "build_army": {
+        const cost = ARMY_COST;
+        if (!this.canAfford(ps.resources, cost)) {
+          return this.failOutcome(action, "Insufficient resources for army (need 1 Ore + 1 Energy)");
+        }
+        this.deductResources(ps, cost);
+        const armyId = `army_${this.state.gameId}_${agentId}_${this.state.round}`;
+        // Find a hex adjacent to one of the player's structures to place the army
+        let armyPosition = { q: 0, r: 0 };
+        if (ps.structures.villages.length > 0) {
+          armyPosition = ps.structures.villages[0].hexes[0];
+        } else if (ps.structures.townships.length > 0) {
+          armyPosition = ps.structures.townships[0].hexes[0];
+        } else if (ps.structures.cities.length > 0) {
+          armyPosition = ps.structures.cities[0].hexes[0];
+        }
+        // Check if player already has an army - if so, add to it
+        const existingArmy = ps.armies.find(a => a.owner === agentId);
+        if (existingArmy) {
+          existingArmy.count += 1;
+        } else {
+          ps.armies.push({
+            id: armyId,
+            owner: agentId,
+            position: armyPosition,
+            count: 1,
+          });
+        }
+        return this.successOutcome(action, "Built an army unit", []);
+      }
+
+      case "move_army": {
+        const armyId = action.params.armyId as string | undefined;
+        const targetHex = action.params.targetHex as HexCoord | undefined;
+        const army = ps.armies.find(a => a.id === armyId && a.owner === agentId);
+        if (!army) {
+          return this.failOutcome(action, "No army found to move");
+        }
+        if (!targetHex) {
+          return this.failOutcome(action, "No target hex specified");
+        }
+        // Validate hex is adjacent (1 hex movement)
+        const distance = hexDistance(army.position, targetHex);
+        if (distance > 1) {
+          return this.failOutcome(action, "Army can only move 1 hex per turn");
+        }
+        army.position = targetHex;
+        return this.successOutcome(action, `Moved army to (${targetHex.q}, ${targetHex.r})`, []);
+      }
+
+      case "attack_structure": {
+        const targetAgentId = action.params.targetAgent as AgentId | undefined;
+        let targetStructureIndex = action.params.targetStructureIndex as number | undefined;
+        if (!targetAgentId) {
+          return this.failOutcome(action, "No target agent specified");
+        }
+        const targetPs = this.state.playerStates.get(targetAgentId);
+        if (!targetPs) {
+          return this.failOutcome(action, "Target agent not found");
+        }
+        // Find attacker's army
+        const attackerArmy = ps.armies.find(a => a.owner === agentId && a.count > 0);
+        if (!attackerArmy) {
+          return this.failOutcome(action, "No army available to attack with");
+        }
+        // Find target structure
+        let targetStructure: HexVertex | undefined;
+        let structureArray: HexVertex[] | undefined;
+        let structureType: "village" | "township" | "city" | undefined;
+        
+        const allStructures = [
+          { array: targetPs.structures.villages, type: "village" as const },
+          { array: targetPs.structures.townships, type: "township" as const },
+          { array: targetPs.structures.cities, type: "city" as const },
+        ];
+        
+        for (const { array, type } of allStructures) {
+          const idx = targetStructureIndex !== undefined ? targetStructureIndex : 0;
+          if (idx < array.length) {
+            targetStructure = array[idx];
+            structureArray = array;
+            structureType = type;
+            break;
+          }
+          if (targetStructureIndex !== undefined) {
+            targetStructureIndex = targetStructureIndex - array.length;
+          }
+        }
+        
+        if (!targetStructure || !structureArray || !structureType) {
+          return this.failOutcome(action, "Target structure not found");
+        }
+        
+        // Calculate distance for attack cost
+        const distance = hexDistance(attackerArmy.position, targetStructure.hexes[0]);
+        const attackCost = 1 + Math.ceil(distance * ARMY_ATTACK_COST_PER_DISTANCE);
+        
+        if (ps.resources.energy < attackCost) {
+          return this.failOutcome(action, `Insufficient energy for attack (need ${attackCost})`);
+        }
+        
+        // Deduct attack cost
+        ps.resources.energy -= attackCost;
+        
+        // Find defender's army at this structure (if any)
+        const defenderArmy = targetPs.armies.find(a => a.owner === targetAgentId && 
+          hexDistance(a.position, targetStructure!.hexes[0]) <= 1);
+        const defenderCount = defenderArmy?.count || 0;
+        
+        // Combat resolution: odds = attacker_count / (attacker_count + defender_count)
+        const attackerCount = attackerArmy.count;
+        const total = attackerCount + defenderCount;
+        const odds = attackerCount / total;
+        const roll = Math.random();
+        
+        if (roll < odds) {
+          // Attacker wins
+          attackerArmy.count -= 1;
+          if (attackerArmy.count === 0) {
+            ps.armies = ps.armies.filter(a => a.id !== attackerArmy.id);
+          }
+          
+          // Transfer ownership of structure to attacker (downgrade by 1 tier)
+          // Remove from defender's array
+          const structIndex = structureArray.findIndex(s => s.hexes[0].q === targetStructure!.hexes[0].q && 
+            s.hexes[0].r === targetStructure!.hexes[0].r);
+          if (structIndex !== -1) {
+            structureArray.splice(structIndex, 1);
+          }
+          
+          // Add to attacker's structures at one tier lower
+          const newType = structureType === "city" ? "township" : 
+                         structureType === "township" ? "village" : null;
+          if (newType) {
+            if (newType === "village") {
+              ps.structures.villages.push({
+                hexes: targetStructure.hexes,
+                structure: "village",
+                owner: agentId,
+                regionId: targetStructure.regionId,
+              });
+            } else if (newType === "township") {
+              ps.structures.townships.push({
+                hexes: targetStructure.hexes,
+                structure: "township",
+                owner: agentId,
+                regionId: targetStructure.regionId,
+              });
+            }
+            
+            // Record conquest for trust
+            trustUpdates.push({
+              from: agentId,
+              to: targetAgentId,
+              delta: -0.5,
+              reason: "conquest",
+            });
+            
+            // Record aggression in trust graph
+            for (const otherId of this.state.players) {
+              if (otherId !== agentId && otherId !== targetAgentId) {
+                trustUpdates.push({
+                  from: otherId,
+                  to: agentId,
+                  delta: -0.3,
+                  reason: "aggression",
+                });
+              }
+            }
+          }
+          
+          return this.successOutcome(action, `Conquered ${targetAgentId}'s ${structureType}! (now a ${newType})`, []);
+        } else {
+          // Defender wins - attacker loses the army
+          attackerArmy.count -= 1;
+          if (attackerArmy.count === 0) {
+            ps.armies = ps.armies.filter(a => a.id !== attackerArmy.id);
+          }
+          return this.failOutcome(action, `Attack on ${targetAgentId}'s ${structureType} failed!`);
+        }
+      }
+
       case "pass":
         return this.successOutcome(action, "Passed", []);
 
@@ -942,13 +1228,13 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   // ============================================================
 
   private resolveMatchedTrades(
-    submissions: Map<string, NexusAction>,
+    submissions: Map<string, ComedyAction>,
     outcomes: ActionOutcome[],
     trustUpdates: TrustUpdate[],
     resolvedTrades: Array<{ from: AgentId; to: AgentId; round: number }>,
   ): void {
     // Group by trade pair
-    const pairs = new Map<string, NexusAction[]>();
+    const pairs = new Map<string, ComedyAction[]>();
     for (const [key, action] of submissions) {
       const pairKey = key.split(":")[0];
       if (!pairs.has(pairKey)) pairs.set(pairKey, []);
@@ -1070,7 +1356,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   // ============================================================
 
   private triggerCrisis(): void {
-    const crisisTypes: CrisisType[] = ["blight", "storm", "famine", "nexus_surge", "the_rift"];
+    const crisisTypes: CrisisType[] = ["blight", "storm", "famine", "current_surge", "the_rift"];
     const type = crisisTypes[Math.floor(Math.random() * crisisTypes.length)];
     const def = CRISIS_DEFINITIONS[type];
 
@@ -1232,7 +1518,8 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       influence: number;
       longestRoad: number;
       structures: {
-        settlements: number;
+        villages: number;
+        townships: number;
         cities: number;
         beacons: number;
         tradePosts: number;
@@ -1244,17 +1531,21 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         regionId?: string;
         regionIds?: string[];
       }>;
+      armies: Array<{ id: string; owner: AgentId; position: HexCoord; count: number }>;
     }> = {};
 
-    for (const [agentId, ps] of this.state.playerStates) {
+      for (const [agentId, ps] of this.state.playerStates) {
       const structureLocations: Array<{
         type: string;
         hexes: Array<{ q: number; r: number }>;
         regionId?: string;
         regionIds?: string[];
       }> = [];
-      for (const s of ps.structures.settlements) {
-        structureLocations.push({ type: "settlement", hexes: s.hexes, regionId: s.regionId });
+      for (const v of ps.structures.villages) {
+        structureLocations.push({ type: "village", hexes: v.hexes, regionId: v.regionId });
+      }
+      for (const t of ps.structures.townships) {
+        structureLocations.push({ type: "township", hexes: t.hexes, regionId: t.regionId });
       }
       for (const c of ps.structures.cities) {
         structureLocations.push({ type: "city", hexes: c.hexes, regionId: c.regionId });
@@ -1275,13 +1566,15 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         influence: ps.influence,
         longestRoad: ps.longestRoad,
         structures: {
-          settlements: ps.structures.settlements.length,
+          villages: ps.structures.villages.length,
+          townships: ps.structures.townships.length,
           cities: ps.structures.cities.length,
           beacons: ps.structures.beacons.length,
           tradePosts: ps.structures.tradePosts.length,
           roads: ps.structures.roads.length,
         },
         structureLocations,
+        armies: ps.armies.map(a => ({ ...a })),
       };
     }
 
@@ -1389,8 +1682,8 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     const agentPositions: Record<string, { q: number; r: number }> = {};
     const agentRegions: Record<string, string> = {};
     for (const [agentId, ps] of this.state.playerStates) {
-      if (ps.structures.settlements.length > 0) {
-        const startHex = ps.structures.settlements[0].hexes[0];
+      if (ps.structures.villages.length > 0) {
+        const startHex = ps.structures.villages[0].hexes[0];
         agentPositions[agentId] = { q: startHex.q, r: startHex.r };
         const startRegion = getRegionByCoord(this.state.worldMap, startHex);
         if (startRegion) {
@@ -1431,7 +1724,8 @@ export class NexusEngine extends GameEngine<NexusGameState> {
 
     const regionIds = new Set<string>();
     const structures = [
-      ...ps.structures.settlements,
+      ...ps.structures.villages,
+      ...ps.structures.townships,
       ...ps.structures.cities,
       ...ps.structures.beacons,
       ...ps.structures.tradePosts,
@@ -1510,7 +1804,27 @@ export class NexusEngine extends GameEngine<NexusGameState> {
 
     for (const ecosystem of this.state.ecosystems) {
       const extractions = roundExtractions.filter((entry) => entry.ecosystemId === ecosystem.id);
-      const totalPressure = extractions.reduce((sum, entry) => sum + entry.pressure, 0);
+      let totalPressure = extractions.reduce((sum, entry) => sum + entry.pressure, 0);
+
+      // Army pressure: each army unit adjacent to ecosystem adds +0.05 pressure per round
+      const ecosystemRegionIds = new Set(ecosystem.regionIds);
+      for (const [_, ps] of this.state.playerStates) {
+        for (const army of ps.armies) {
+          // Check if army is adjacent to any region of this ecosystem
+          const armyHex = army.position;
+          for (const regionId of ecosystem.regionIds) {
+            const region = this.state.worldMap.regions.find(r => r.id === regionId);
+            if (region) {
+              const regionHex = region.coord;
+              if (hexDistance(armyHex, regionHex) <= 1) {
+                totalPressure += army.count * 0.05;
+                break;
+              }
+            }
+          }
+        }
+      }
+
       const totalYield = extractions.reduce((sum, entry) => sum + entry.yield, 0);
       const regenBonus = totalPressure === 0 && ecosystem.health < ecosystem.maxHealth ? 1 : 0;
       const delta = ecosystem.baseRegeneration + regenBonus - totalPressure;
@@ -1610,7 +1924,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   // Helpers
   // ============================================================
 
-  private makeAction(type: NexusAction["type"], agentId: AgentId, params: Record<string, unknown> = {}): NexusAction {
+  private makeAction(type: ComedyAction["type"], agentId: AgentId, params: Record<string, unknown> = {}): ComedyAction {
     return {
       type,
       agentId,
@@ -1624,7 +1938,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     return RESOURCE_NAMES.every((resource) => resources[resource] >= cost[resource]);
   }
 
-  private deductResources(ps: NexusPlayerState, cost: ResourceInventory): void {
+  private deductResources(ps: ComedyPlayerState, cost: ResourceInventory): void {
     for (const resource of RESOURCE_NAMES) {
       ps.resources[resource] -= cost[resource];
     }
@@ -1645,9 +1959,10 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     const ps = this.state.playerStates.get(agentId);
     if (!ps) return false;
 
-    // Check if any structure (settlement, city, beacon, trade post) is on or adjacent to this hex
+    // Check if any structure (village, township, city, beacon, trade post) is on or adjacent to this hex
     const allStructureHexes = [
-      ...ps.structures.settlements,
+      ...ps.structures.villages,
+      ...ps.structures.townships,
       ...ps.structures.cities,
       ...ps.structures.beacons,
       ...ps.structures.tradePosts,
@@ -1678,13 +1993,16 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   }
 
   /**
-   * Collect ALL settlement/city hexes across ALL players (for distance rule enforcement).
+   * Collect ALL village/township/city hexes across ALL players (for distance rule enforcement).
    */
-  private getAllSettlementCityHexes(): import("./types.js").HexCoord[] {
+  private getAllStructureHexes(): import("./types.js").HexCoord[] {
     const hexes: import("./types.js").HexCoord[] = [];
     for (const [_, ps] of this.state.playerStates) {
-      for (const s of ps.structures.settlements) {
-        hexes.push(...s.hexes);
+      for (const v of ps.structures.villages) {
+        hexes.push(...v.hexes);
+      }
+      for (const t of ps.structures.townships) {
+        hexes.push(...t.hexes);
       }
       for (const c of ps.structures.cities) {
         hexes.push(...c.hexes);
@@ -1698,8 +2016,8 @@ export class NexusEngine extends GameEngine<NexusGameState> {
    * from any other settlement or city (any player).
    */
   private satisfiesDistanceRule(coord: import("./types.js").HexCoord): boolean {
-    const allSettlementCities = this.getAllSettlementCityHexes();
-    for (const existing of allSettlementCities) {
+    const allStructureHexes = this.getAllStructureHexes();
+    for (const existing of allStructureHexes) {
       if (hexDistance(coord, existing) < 2) {
         return false;
       }
@@ -1721,7 +2039,8 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     const networkKeys = new Set<string>();
     const networkHexes: import("./types.js").HexCoord[] = [];
     const allStructures = [
-      ...ps.structures.settlements,
+      ...ps.structures.villages,
+      ...ps.structures.townships,
       ...ps.structures.cities,
       ...ps.structures.beacons,
       ...ps.structures.tradePosts,
@@ -1765,8 +2084,9 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     // Collect all hexes occupied by any structure (any player)
     const allOccupied = new Set<string>();
     for (const [_, otherPs] of this.state.playerStates) {
-      for (const s of [...otherPs.structures.settlements, ...otherPs.structures.cities,
-                        ...otherPs.structures.beacons, ...otherPs.structures.tradePosts]) {
+      for (const s of [...otherPs.structures.villages, ...otherPs.structures.townships,
+                        ...otherPs.structures.cities, ...otherPs.structures.beacons,
+                        ...otherPs.structures.tradePosts]) {
         for (const h of s.hexes) {
           allOccupied.add(hexKey(h));
         }
@@ -1803,7 +2123,8 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     if (!ps) return null;
 
     const allStructures = [
-      ...ps.structures.settlements,
+      ...ps.structures.villages,
+      ...ps.structures.townships,
       ...ps.structures.cities,
       ...ps.structures.beacons,
       ...ps.structures.tradePosts,
@@ -1879,7 +2200,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
         }
         break;
       }
-      case "nexus_surge": {
+      case "current_surge": {
         const basinHex = this.state.hexGrid.get(hexKey({ q: 0, r: 0 }));
         if (basinHex) {
           basinHex.terrain = "wasteland";
@@ -1890,7 +2211,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
       case "the_rift": {
         // "Random hex becomes permanent Wasteland"
         const nonWasteland = Array.from(this.state.hexGrid.values()).filter(
-          t => t.terrain !== "wasteland" && t.terrain !== "nexus"
+          t => t.terrain !== "wasteland" && t.terrain !== "commons"
         );
         if (nonWasteland.length > 0) {
           const target = nonWasteland[Math.floor(Math.random() * nonWasteland.length)];
@@ -2562,11 +2883,10 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     const sabotageCount = this.state.behaviorTags.filter((tag) => tag.kind === "sabotage").length;
 
     let score = ecosystemAverage;
-    score += flourishing * 2;
-    score -= strained * 4;
-    score -= collapsed * 10;
-    score -= failedCrises * 8;
-    score -= sabotageCount * 3;
+    score -= strained * 5;
+    score -= collapsed * 12;
+    score -= failedCrises * 10;
+    score -= sabotageCount * 5;
     score = Math.max(0, Math.min(100, score));
 
     const payableFraction = score / 100;
@@ -2605,7 +2925,7 @@ export class NexusEngine extends GameEngine<NexusGameState> {
     this.state.payablePrizePool = this.applyFractionToBigInt(this.state.prizePool, fraction);
     this.state.slashedPrizePool = this.state.prizePool - this.state.payablePrizePool;
     this.state.carryoverPrizePool = this.state.slashedPrizePool;
-    NexusEngine.pendingPrizeCarryoverWei = this.state.carryoverPrizePool;
+    ComedyEngine.pendingPrizeCarryoverWei = this.state.carryoverPrizePool;
 
     this.state.currentCommonsHealth = this.buildCommonsHealthSnapshot(
       this.state.round,
@@ -2650,8 +2970,8 @@ export class NexusEngine extends GameEngine<NexusGameState> {
   }
 
   private static takePrizeCarryover(): bigint {
-    const carryover = NexusEngine.pendingPrizeCarryoverWei;
-    NexusEngine.pendingPrizeCarryoverWei = 0n;
+    const carryover = ComedyEngine.pendingPrizeCarryoverWei;
+    ComedyEngine.pendingPrizeCarryoverWei = 0n;
     return carryover;
   }
 

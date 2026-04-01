@@ -86,17 +86,17 @@
       z-index: 1;
       max-width: 1720px;
       margin: 0 auto;
-      padding: 22px 18px 18px;
+      padding: 14px 14px 14px;
     }
 
     .topbar {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
-      gap: 18px;
-      padding: 24px 28px 22px;
+      gap: 14px;
+      padding: 14px 20px;
       border: 1px solid var(--line);
-      border-radius: 30px;
+      border-radius: 20px;
       background:
         linear-gradient(135deg, rgba(12, 28, 42, 0.94), rgba(10, 18, 28, 0.92)),
         rgba(10, 18, 28, 0.92);
@@ -110,9 +110,9 @@
       position: absolute;
       inset: 0;
       background:
-        radial-gradient(circle at 14% 12%, rgba(221, 180, 105, 0.16), transparent 18%),
-        radial-gradient(circle at 88% 18%, rgba(114, 169, 181, 0.14), transparent 16%),
-        linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.03) 48%, transparent 100%);
+        radial-gradient(circle at 14% 50%, rgba(221, 180, 105, 0.12), transparent 18%),
+        radial-gradient(circle at 88% 50%, rgba(114, 169, 181, 0.10), transparent 16%),
+        linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.02) 48%, transparent 100%);
       pointer-events: none;
     }
 
@@ -124,29 +124,29 @@
 
     .eyebrow {
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 10px;
       letter-spacing: 0.28em;
       text-transform: uppercase;
       color: var(--text-soft);
-      margin-bottom: 12px;
+      margin-bottom: 4px;
     }
 
     .brand h1 {
       font-family: var(--serif);
-      font-size: clamp(38px, 5.4vw, 66px);
-      line-height: 0.92;
+      font-size: clamp(22px, 3vw, 34px);
+      line-height: 1;
       letter-spacing: 0.01em;
       font-weight: 700;
       color: var(--text);
       text-wrap: balance;
-      text-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+      text-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
     }
 
     .brand p {
-      margin-top: 16px;
+      margin-top: 6px;
       max-width: 680px;
-      font-size: 16px;
-      line-height: 1.65;
+      font-size: 13px;
+      line-height: 1.5;
       color: var(--text-muted);
     }
 
@@ -154,18 +154,17 @@
       position: relative;
       z-index: 1;
       display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: 12px;
-      min-width: 260px;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      flex-shrink: 0;
     }
 
     .status-block {
-      width: 100%;
-      max-width: 280px;
-      padding: 14px 16px;
+      padding: 8px 12px;
       border: 1px solid var(--line);
-      border-radius: 18px;
+      border-radius: 12px;
       background: linear-gradient(180deg, rgba(239, 223, 192, 0.05), rgba(12, 20, 30, 0.5));
     }
 
@@ -181,9 +180,9 @@
     }
 
     .status-meta {
-      margin-top: 8px;
-      font-size: 13px;
-      line-height: 1.4;
+      margin-top: 4px;
+      font-size: 11px;
+      line-height: 1.3;
       color: var(--text-muted);
     }
 
@@ -205,8 +204,8 @@
     .run-btn {
       border: none;
       border-radius: 999px;
-      padding: 14px 24px;
-      min-width: 210px;
+      padding: 10px 18px;
+      min-width: 0;
       background: linear-gradient(135deg, #e4be7c, #f1d8a4 48%, #cf8b65 100%);
       color: #181610;
       font-family: var(--mono);
@@ -234,19 +233,19 @@
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 14px;
-      margin-top: 16px;
-      margin-bottom: 18px;
+      gap: 10px;
+      margin-top: 10px;
+      margin-bottom: 10px;
     }
 
     .metric-card {
-      padding: 18px 18px 16px;
+      padding: 12px 14px 10px;
       border: 1px solid var(--line);
-      border-radius: 20px;
+      border-radius: 16px;
       background: linear-gradient(180deg, rgba(14, 27, 40, 0.92), rgba(8, 18, 28, 0.82));
       box-shadow: var(--shadow);
       backdrop-filter: blur(16px);
-      min-height: 112px;
+      min-height: 0;
       position: relative;
     }
 
@@ -265,17 +264,17 @@
     }
 
     .metric-value {
-      margin-top: 12px;
+      margin-top: 6px;
       font-family: var(--serif);
-      font-size: clamp(26px, 2.9vw, 38px);
+      font-size: clamp(20px, 2.2vw, 28px);
       line-height: 1;
       color: var(--text);
     }
 
     .metric-meta {
-      margin-top: 10px;
-      font-size: 13px;
-      line-height: 1.4;
+      margin-top: 4px;
+      font-size: 12px;
+      line-height: 1.35;
       color: var(--text-muted);
     }
 
@@ -283,7 +282,7 @@
       display: grid;
       grid-template-columns: repeat(12, minmax(0, 1fr));
       grid-template-rows: auto auto;
-      gap: 18px;
+      gap: 12px;
       align-items: start;
     }
 
@@ -295,14 +294,15 @@
       overflow: hidden;
       backdrop-filter: blur(16px);
       min-height: 0;
+      min-width: 0;
     }
 
     .panel-header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      gap: 16px;
-      padding: 18px 20px 16px;
+      gap: 12px;
+      padding: 12px 16px 10px;
       border-bottom: 1px solid var(--line);
       background: linear-gradient(180deg, rgba(24, 40, 56, 0.86), rgba(10, 18, 28, 0.48));
     }
@@ -316,9 +316,9 @@
     }
 
     .panel-header h2 {
-      margin-top: 7px;
+      margin-top: 4px;
       font-family: var(--serif);
-      font-size: 28px;
+      font-size: 20px;
       font-weight: 600;
       color: var(--text);
     }
@@ -335,7 +335,7 @@
       min-height: 0;
       height: auto;
       overflow: visible;
-      padding: 18px 20px 20px;
+      padding: 12px 14px 14px;
       scrollbar-width: thin;
       scrollbar-color: rgba(233, 220, 190, 0.18) transparent;
     }
@@ -354,7 +354,7 @@
     .feed-panel .panel-body,
     .ledger-panel .panel-body,
     .trust-panel .panel-body {
-      max-height: 620px;
+      max-height: 480px;
       overflow: auto;
     }
 
@@ -385,19 +385,16 @@
 
     .world-body {
       display: grid;
-      grid-template-columns: minmax(0, 1.8fr) minmax(320px, 0.72fr);
-      gap: 16px;
-      padding: 16px;
-      height: auto;
-      overflow: visible;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 12px;
       align-items: start;
+      padding: 12px;
     }
 
     .canvas-shell {
       position: relative;
-      min-height: 0;
       border: 1px solid var(--line);
-      border-radius: 22px;
+      border-radius: 18px;
       overflow: hidden;
       background:
         radial-gradient(circle at 50% 18%, rgba(221, 180, 105, 0.12), transparent 22%),
@@ -405,7 +402,7 @@
         linear-gradient(180deg, #08131f 0%, #0a1623 100%);
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 24px 70px rgba(0,0,0,0.28);
       aspect-ratio: 3 / 2;
-      min-height: 620px;
+      min-height: 0;
     }
 
     .board-underlay,
@@ -417,12 +414,7 @@
     }
 
     .board-underlay {
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      object-position: center;
-      opacity: 0.96;
+      display: none;
     }
 
     .board-frame {
@@ -560,21 +552,20 @@
 
     .world-sidebar {
       display: grid;
-      grid-template-rows: auto auto auto;
-      gap: 12px;
-      min-height: 0;
-      overflow: visible;
-      padding-right: 4px;
+      gap: 8px;
       align-content: start;
+      min-width: 0;
     }
 
     .mini-card {
-      padding: 16px;
-      border-radius: 20px;
+      padding: 10px 12px;
+      border-radius: 14px;
       border: 1px solid var(--line);
-      background: linear-gradient(180deg, rgba(16, 30, 44, 0.92), rgba(10, 20, 30, 0.84));
+      background: linear-gradient(180deg, rgba(14, 28, 41, 0.97), rgba(9, 18, 28, 0.95));
       min-height: 0;
       box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+      position: relative;
+      isolation: isolate;
     }
 
     .ecosystem-list {
@@ -642,17 +633,17 @@
     }
 
     .mini-value {
-      margin-top: 12px;
+      margin-top: 6px;
       font-family: var(--serif);
-      font-size: 30px;
+      font-size: 22px;
       line-height: 1;
       color: var(--text);
     }
 
     .mini-copy {
-      margin-top: 10px;
-      font-size: 13px;
-      line-height: 1.48;
+      margin-top: 6px;
+      font-size: 12px;
+      line-height: 1.4;
       color: var(--text-muted);
     }
 
@@ -749,8 +740,8 @@
     }
 
     .agent-card {
-      padding: 14px;
-      border-radius: 18px;
+      padding: 10px 12px;
+      border-radius: 14px;
       border: 1px solid rgba(233, 220, 190, 0.12);
       background:
         linear-gradient(135deg, rgba(18, 33, 48, 0.96), rgba(10, 18, 28, 0.9));
@@ -785,7 +776,7 @@
 
     .agent-name {
       font-family: var(--serif);
-      font-size: 22px;
+      font-size: 17px;
       line-height: 1;
       color: var(--text);
       white-space: nowrap;
@@ -840,7 +831,7 @@
 
     .score-value {
       font-family: var(--serif);
-      font-size: 28px;
+      font-size: 20px;
       line-height: 1;
       color: var(--text);
     }
@@ -1046,7 +1037,7 @@
     .ledger-grid {
       display: grid;
       grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-      gap: 18px;
+      gap: 12px;
     }
 
     .ledger-card,
@@ -1083,21 +1074,25 @@
 
     .trust-body {
       display: grid;
-      grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
-      gap: 18px;
+      grid-template-columns: 1fr;
+      gap: 12px;
       align-items: start;
+      overflow-x: auto;
+      min-width: 0;
     }
 
     .matrix-grid {
       display: grid;
-      gap: 6px;
+      gap: 4px;
       align-items: stretch;
+      overflow-x: auto;
+      min-width: 0;
     }
 
     .matrix-cell,
     .matrix-label {
-      border-radius: 12px;
-      min-height: 44px;
+      border-radius: 8px;
+      min-height: 36px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1163,11 +1158,18 @@
         height: auto;
       }
 
-      .canvas-shell {
-        min-height: 520px;
+      .world-body {
+        grid-template-columns: 1fr;
       }
 
-      .world-body,
+      .canvas-shell {
+        min-height: 0;
+      }
+
+      .world-sidebar {
+        margin-top: 12px;
+      }
+
       .ledger-grid,
       .trust-body {
         grid-template-columns: 1fr;
@@ -1200,7 +1202,7 @@
       }
 
       .canvas-shell {
-        min-height: 420px;
+        min-height: 0;
       }
     }
 
@@ -1464,7 +1466,7 @@
         label: "waste",
         symbol: "WA",
       },
-      nexus: {
+      commons: {
         fill: "#b77249",
         dark: "#623723",
         glow: "rgba(183, 114, 73, 0.46)",
@@ -1536,6 +1538,8 @@
       structureOffsets: new Map(),
       lastBoardFrameAt: 0,
       lastUiRenderAt: 0,
+      particles: [],
+      particlesInitialized: false,
     };
 
     function init() {
@@ -1656,6 +1660,8 @@
           state.ecosystemStates = Array.isArray(message.data.worldMap.ecosystems)
             ? message.data.worldMap.ecosystems
             : state.ecosystemStates;
+          state.particles = [];
+          state.particlesInitialized = false;
         }
         queueRender();
         return;
@@ -1685,7 +1691,11 @@
         case "game.map_data":
           state.hexGrid = Array.isArray(data.hexes) ? data.hexes : [];
           state.worldMap = data.worldMap || state.worldMap;
-          state.ecosystemStates = Array.isArray(data.worldMap?.ecosystems) ? data.worldMap.ecosystems : state.ecosystemStates;
+          // Don't overwrite live ecosystemStates from static worldMap data —
+          // live values come via game.state_update events
+          if (state.ecosystemStates.length === 0 && Array.isArray(data.worldMap?.ecosystems)) {
+            state.ecosystemStates = data.worldMap.ecosystems;
+          }
           state.agentPositions = data.agentPositions || {};
           state.agentRegions = data.agentRegions || {};
           state.productionWheel = data.productionWheel || [];
@@ -1825,7 +1835,7 @@
       state.mapActivity = [];
       state.feed = [];
       state.hexGrid = [];
-      state.worldMap = null;
+      // worldMap is preserved — template set by welcome, updated by game.map_data
       state.ecosystemStates = [];
       state.agentPositions = {};
       state.agentRegions = {};
@@ -2609,11 +2619,14 @@
 
       if (Array.isArray(state.worldMap?.regions) && state.worldMap.regions.length > 0) {
         const viewport = computeWorldViewport(width, height);
-        drawWorldEcosystems(context, viewport, now);
+        drawHexGridBg(context, viewport, now);
+        drawEcosystemLinks(context, viewport);
         drawWorldRegions(context, viewport, now);
+        drawWorldEcosystems(context, viewport, now);
         drawWorldRoads(context, viewport);
         drawWorldStructures(context, viewport);
         drawActivityBursts(context, viewport, now);
+        drawAmbientParticles(context, viewport, now);
         drawWorldAgentHomes(context, viewport, now);
         drawTradeBursts(context, viewport, now);
         drawBoardHud(context, width, height);
@@ -2815,9 +2828,9 @@
     }
 
     function drawRegionMedallion(context, region, palette, anchor, viewport, producing) {
-      const badgeX = anchor.x + 34 * viewport.scale;
-      const badgeY = anchor.y + 30 * viewport.scale;
-      const radius = Math.max(12, 16 * viewport.scale);
+      const badgeX = anchor.x;
+      const badgeY = anchor.y + 34 * viewport.scale;
+      const radius = Math.max(12, 22 * viewport.scale);
       context.beginPath();
       context.arc(badgeX, badgeY, radius, 0, Math.PI * 2);
       const fill = context.createRadialGradient(badgeX - radius * 0.3, badgeY - radius * 0.4, 2, badgeX, badgeY, radius * 1.2);
@@ -2829,99 +2842,115 @@
       context.lineWidth = 2.4 * viewport.scale;
       context.stroke();
       context.fillStyle = producing ? "#18140f" : "rgba(247,238,220,0.88)";
-      context.font = `800 ${Math.max(10, 13 * viewport.scale)}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+      context.font = `800 ${Math.max(10, 18 * viewport.scale)}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
       context.textAlign = "center";
       context.textBaseline = "middle";
       context.fillText(String(region.productionNumber || "-"), badgeX, badgeY + 0.5);
     }
 
     function drawWorldRegions(context, viewport, now) {
+      const HEX_R = state.worldMap?.hexSize || 90;
       const regions = (state.worldMap?.regions || []).slice().sort((left, right) => left.anchor.y - right.anchor.y);
       regions.forEach((region) => {
         const palette = regionPalette(region);
         const stress = regionStress(region);
         const anchor = worldPointToCanvas(region.anchor, viewport);
+        const r = HEX_R * viewport.scale;
         const producing = Number(region.productionNumber || 0) === Number(state.productionNumber || -1) && Number(region.productionNumber || 0) > 0;
         const pulse = 0.5 + 0.5 * Math.sin(now / 520 + anchor.x * 0.002 + anchor.y * 0.003);
-        const nameY = anchor.y - 34 * viewport.scale;
-        const subY = anchor.y - 18 * viewport.scale;
 
+        // Drop shadow hex
         context.save();
-        context.beginPath();
-        context.ellipse(anchor.x, anchor.y, 30 * viewport.scale, 22 * viewport.scale, 0, 0, Math.PI * 2);
-        context.fillStyle = `rgba(10, 20, 31, ${0.12 + (1 - stress) * 0.05})`;
+        drawHexPath(context, anchor.x + 3 * viewport.scale, anchor.y + 6 * viewport.scale, r);
+        context.fillStyle = "rgba(0, 0, 0, 0.30)";
         context.fill();
         context.restore();
 
+        // Main hex fill with radial gradient
+        context.save();
+        drawHexPath(context, anchor.x, anchor.y, r);
+        const fill = context.createRadialGradient(
+          anchor.x - r * 0.18, anchor.y - r * 0.28, r * 0.08,
+          anchor.x, anchor.y, r * 1.08,
+        );
+        fill.addColorStop(0, lightenHex(palette.base, 34));
+        fill.addColorStop(0.46, palette.base);
+        fill.addColorStop(1, palette.dark);
+        context.fillStyle = fill;
+        context.fill();
+
+        // Biome texture inside hex (clipped to hex shape)
+        context.clip();
+        drawHexBiomeTexture(context, region, anchor, r, viewport, now);
+
+        // Health stress overlay
+        if (stress < 0.7) {
+          drawHexPath(context, anchor.x, anchor.y, r);
+          context.fillStyle = `rgba(217, 113, 99, ${(0.7 - stress) * 0.16})`;
+          context.fill();
+        }
+        context.restore();
+
+        // Producing glow hex
         if (producing) {
           context.save();
-          context.beginPath();
-          context.arc(anchor.x, anchor.y, 28 * viewport.scale + pulse * 4 * viewport.scale, 0, Math.PI * 2);
-          context.strokeStyle = addAlpha(palette.resource, 0.56 + pulse * 0.18);
-          context.lineWidth = 3 * viewport.scale;
+          drawHexPath(context, anchor.x, anchor.y, r + 5 * viewport.scale);
+          context.strokeStyle = addAlpha(palette.resource, 0.42 + pulse * 0.32);
+          context.lineWidth = 3.5 * viewport.scale;
           context.shadowColor = addAlpha(palette.resource, 0.7);
-          context.shadowBlur = 14 * viewport.scale;
+          context.shadowBlur = 22 * viewport.scale;
           context.stroke();
           context.restore();
         }
 
-        context.fillStyle = "rgba(246, 236, 217, 0.96)";
-        context.font = `${Math.max(11, 14 * viewport.scale)}px Baskerville, Iowan Old Style, Georgia, serif`;
+        // Hex border
+        drawHexPath(context, anchor.x, anchor.y, r);
+        context.strokeStyle = lightenHex(palette.base, 38);
+        context.lineWidth = 2.2 * viewport.scale;
+        context.stroke();
+
+        // Inner highlight edge
+        drawHexPath(context, anchor.x, anchor.y, r - 2.5 * viewport.scale);
+        context.strokeStyle = "rgba(255, 255, 255, 0.06)";
+        context.lineWidth = 1 * viewport.scale;
+        context.stroke();
+
+        // Region name (upper area of hex)
+        const nameY = anchor.y - r * 0.28;
+        context.save();
+        context.font = `600 ${Math.max(10, 18 * viewport.scale)}px Baskerville, Iowan Old Style, Georgia, serif`;
         context.textAlign = "center";
         context.textBaseline = "middle";
-        context.shadowColor = "rgba(3, 9, 14, 0.35)";
-        context.shadowBlur = 6 * viewport.scale;
+        // Text outline for contrast
+        context.strokeStyle = "rgba(3, 9, 14, 0.8)";
+        context.lineWidth = 3 * viewport.scale;
+        context.lineJoin = "round";
+        context.strokeText(region.name, anchor.x, nameY);
+        context.fillStyle = "#f6f0e0";
         context.fillText(region.name, anchor.x, nameY);
+        context.restore();
 
-        context.shadowBlur = 0;
-        context.fillStyle = addAlpha(palette.resource, 0.88);
-        context.font = `700 ${Math.max(7, 8.5 * viewport.scale)}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
-        context.fillText(String(region.primaryResource || "").toUpperCase(), anchor.x, subY);
+        // Resource label (mid area)
+        context.save();
+        context.font = `700 ${Math.max(7, 12 * viewport.scale)}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.strokeStyle = "rgba(3, 9, 14, 0.7)";
+        context.lineWidth = 2.5 * viewport.scale;
+        context.lineJoin = "round";
+        const resText = String(region.primaryResource || "").toUpperCase();
+        context.strokeText(resText, anchor.x, nameY + 22 * viewport.scale);
+        context.fillStyle = addAlpha(palette.resource, 1.0);
+        context.fillText(resText, anchor.x, nameY + 22 * viewport.scale);
+        context.restore();
 
+        // Production number medallion (lower area of hex)
         drawRegionMedallion(context, region, palette, anchor, viewport, producing);
       });
     }
 
     function drawWorldEcosystems(context, viewport, now) {
-      const ecosystems = state.ecosystemStates || [];
-      ecosystems.forEach((ecosystem, index) => {
-        const alpha = 0.08 + (Number(ecosystem.health || 0) / Math.max(1, Number(ecosystem.maxHealth || 100))) * 0.12;
-        const stroke = ecosystemStatusColor(ecosystem.status, alpha);
-        const pulse = 0.5 + 0.5 * Math.sin(now / 820 + index);
-
-        const label = worldPointToCanvas(ecosystem.label, viewport);
-        const radius = (24 + pulse * 3) * viewport.scale;
-
-        context.beginPath();
-        context.arc(label.x, label.y, radius * 1.6, 0, Math.PI * 2);
-        context.fillStyle = ecosystemStatusColor(ecosystem.status, 0.09 + pulse * 0.03);
-        context.fill();
-
-        context.beginPath();
-        context.arc(label.x, label.y, radius, 0, Math.PI * 2);
-        context.fillStyle = "rgba(8, 17, 26, 0.56)";
-        context.fill();
-        context.strokeStyle = ecosystemStatusColor(ecosystem.status, 0.4);
-        context.lineWidth = 1.6;
-        context.stroke();
-
-        context.beginPath();
-        context.arc(label.x, label.y, radius * 0.74, -Math.PI / 2, (-Math.PI / 2) + Math.PI * 2 * (Number(ecosystem.health || 0) / Math.max(1, Number(ecosystem.maxHealth || 100))));
-        context.strokeStyle = stroke;
-        context.lineWidth = 3.2 * viewport.scale;
-        context.lineCap = "round";
-        context.stroke();
-
-        context.fillStyle = "rgba(247,238,220,0.88)";
-        context.font = `700 ${Math.max(8, 9 * viewport.scale)}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
-        context.textAlign = "center";
-        context.textBaseline = "middle";
-        context.fillText(String(ecosystem.health || 0), label.x, label.y + 1);
-
-        context.fillStyle = ecosystemStatusColor(ecosystem.status, 0.9);
-        context.font = `${Math.max(7, 8 * viewport.scale)}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
-        context.fillText(String((ecosystem.name || "").split(" ")[0] || "ECO").toUpperCase(), label.x, label.y + radius + 10 * viewport.scale);
-      });
+      // Ecosystem health is shown in the sidebar panel — no on-map badges needed.
     }
 
     function drawWorldRoads(context, viewport) {
@@ -3221,24 +3250,35 @@
 
         const age = Math.min(1, (now - activity.createdAt) / 5200);
         const alpha = 1 - age;
-        const color = mapActivityColor(activity.type);
         const [r, g, b] = mapActivityRgb(activity.type);
-        const baseRadius = (20 + age * 34) * viewport.scale;
+        const baseRadius = (24 + age * 40) * viewport.scale;
 
-        context.beginPath();
-        context.arc(targetPoint.x, targetPoint.y, baseRadius, 0, Math.PI * 2);
-        context.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.36 * alpha})`;
-        context.lineWidth = 3.2 * viewport.scale;
+        // Expanding hex ring
+        context.save();
+        drawHexPath(context, targetPoint.x, targetPoint.y, baseRadius);
+        context.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.30 * alpha})`;
+        context.lineWidth = 2.8 * viewport.scale;
         context.stroke();
+        context.restore();
 
+        // Second inner hex ring
+        context.save();
+        drawHexPath(context, targetPoint.x, targetPoint.y, baseRadius * 0.55);
+        context.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.16 * alpha})`;
+        context.lineWidth = 1.4 * viewport.scale;
+        context.stroke();
+        context.restore();
+
+        // Center dot
         context.beginPath();
-        context.arc(targetPoint.x, targetPoint.y, Math.max(5, 9 * viewport.scale), 0, Math.PI * 2);
-        context.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.72 * alpha})`;
+        context.arc(targetPoint.x, targetPoint.y, Math.max(4, 6 * viewport.scale), 0, Math.PI * 2);
+        context.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.68 * alpha})`;
         context.fill();
 
+        // Bright core
         context.beginPath();
-        context.arc(targetPoint.x, targetPoint.y, Math.max(2, 4 * viewport.scale), 0, Math.PI * 2);
-        context.fillStyle = "rgba(248, 241, 225, 0.9)";
+        context.arc(targetPoint.x, targetPoint.y, Math.max(1.5, 2.5 * viewport.scale), 0, Math.PI * 2);
+        context.fillStyle = `rgba(248, 241, 225, ${0.88 * alpha})`;
         context.fill();
       });
     }
@@ -3248,6 +3288,229 @@
       if (status === "collapsed") return `rgba(217, 113, 99, ${alpha})`;
       if (status === "strained") return `rgba(217, 178, 95, ${alpha})`;
       return `rgba(99, 165, 167, ${alpha})`;
+    }
+
+    // ---- Hex grid background pattern ----
+    function drawHexGridBg(context, viewport, now) {
+      const gridSize = 16 * viewport.scale;
+      const sw = Math.sqrt(3) * gridSize;
+      const sh = gridSize * 1.5;
+      const rect = context.canvas.getBoundingClientRect();
+      const cols = Math.ceil(rect.width / sw) + 2;
+      const rows = Math.ceil(rect.height / sh) + 2;
+      const drift = (now * 0.003) % sw;
+
+      context.save();
+      context.strokeStyle = "rgba(239, 223, 192, 0.032)";
+      context.lineWidth = 0.5;
+      for (let row = -1; row < rows; row++) {
+        for (let col = -1; col < cols; col++) {
+          const x = col * sw + (row % 2) * sw * 0.5 + drift;
+          const y = row * sh;
+          drawHexPath(context, x, y, gridSize * 0.92);
+          context.stroke();
+        }
+      }
+      context.restore();
+    }
+
+    // ---- Ecosystem connection lines between member regions ----
+    function drawEcosystemLinks(context, viewport) {
+      const ecosystems = state.ecosystemStates || [];
+      const worldRegions = state.worldMap?.regions || [];
+
+      ecosystems.forEach((eco) => {
+        const regionIds = eco.regionIds || [];
+        const health = Number(eco.health || 0) / Math.max(1, Number(eco.maxHealth || 100));
+        const color = ecosystemStatusColor(eco.status, 0.09 + health * 0.06);
+
+        for (let i = 0; i < regionIds.length; i++) {
+          for (let j = i + 1; j < regionIds.length; j++) {
+            const rA = worldRegions.find((r) => r.id === regionIds[i]);
+            const rB = worldRegions.find((r) => r.id === regionIds[j]);
+            if (!rA || !rB) continue;
+            if (axialDist(rA.coord, rB.coord) > 2) continue;
+
+            const a = worldPointToCanvas(rA.anchor, viewport);
+            const b = worldPointToCanvas(rB.anchor, viewport);
+            const midX = (a.x + b.x) / 2;
+            const midY = (a.y + b.y) / 2 - 8 * viewport.scale;
+
+            context.beginPath();
+            context.moveTo(a.x, a.y);
+            context.quadraticCurveTo(midX, midY, b.x, b.y);
+            context.strokeStyle = color;
+            context.lineWidth = 1.8 * viewport.scale;
+            context.setLineDash([6 * viewport.scale, 4 * viewport.scale]);
+            context.stroke();
+            context.setLineDash([]);
+          }
+        }
+      });
+    }
+
+    function axialDist(a, b) {
+      return Math.max(Math.abs(a.q - b.q), Math.abs(a.r - b.r), Math.abs(a.q + a.r - b.q - b.r));
+    }
+
+    // ---- Biome texture drawn inside hex tiles (called while clipped) ----
+    function drawHexBiomeTexture(context, region, anchor, r, viewport, now) {
+      const seed = hashString(region.id);
+      const s = viewport.scale;
+
+      if (["rainforest", "taiga", "farmland"].includes(region.biome)) {
+        // Contour lines
+        context.strokeStyle = "rgba(255,255,255,0.065)";
+        context.lineWidth = 0.9 * s;
+        for (let i = -4; i <= 4; i++) {
+          const y = anchor.y + i * r * 0.19;
+          const wave = ((seed + i * 3) % 12) * 0.6 * s;
+          context.beginPath();
+          context.moveTo(anchor.x - r, y);
+          context.quadraticCurveTo(anchor.x, y - wave, anchor.x + r, y + wave * 0.4);
+          context.stroke();
+        }
+      } else if (["desert", "steppe"].includes(region.biome)) {
+        // Stipple dots
+        context.fillStyle = "rgba(255,255,255,0.045)";
+        for (let i = 0; i < 28; i++) {
+          const angle = ((seed + i * 137.508) % 360) * Math.PI / 180;
+          const dist = ((seed + i * 73) % 100) / 100 * r * 0.78;
+          context.beginPath();
+          context.arc(anchor.x + Math.cos(angle) * dist, anchor.y + Math.sin(angle) * dist, 1.6 * s, 0, Math.PI * 2);
+          context.fill();
+        }
+        // Slow sand shimmer
+        const shimmer = 0.5 + 0.5 * Math.sin(now / 1800 + seed * 0.1);
+        context.fillStyle = `rgba(255, 245, 220, ${0.03 + shimmer * 0.02})`;
+        context.beginPath();
+        context.ellipse(anchor.x + Math.sin(now / 2200) * 8 * s, anchor.y, r * 0.5, r * 0.3, 0, 0, Math.PI * 2);
+        context.fill();
+      } else if (["fjord", "wetland", "riverland", "archipelago"].includes(region.biome)) {
+        // Animated water waves
+        context.strokeStyle = "rgba(255,255,255,0.06)";
+        context.lineWidth = 0.8 * s;
+        for (let i = -3; i <= 3; i++) {
+          const y = anchor.y + i * r * 0.24;
+          const waveOffset = Math.sin(now / 1200 + i * 0.8) * 4 * s;
+          context.beginPath();
+          context.moveTo(anchor.x - r, y + waveOffset);
+          context.bezierCurveTo(
+            anchor.x - r * 0.33, y - 5 * s + waveOffset,
+            anchor.x + r * 0.33, y + 5 * s + waveOffset,
+            anchor.x + r, y + waveOffset,
+          );
+          context.stroke();
+        }
+      } else if (["highland", "volcanic"].includes(region.biome)) {
+        // Mountain ridge lines
+        context.strokeStyle = "rgba(255,255,255,0.06)";
+        context.lineWidth = 1 * s;
+        for (let i = 0; i < 5; i++) {
+          const x = anchor.x - r * 0.45 + i * r * 0.22;
+          const y = anchor.y + r * 0.12 - ((seed + i) % 3) * 4 * s;
+          context.beginPath();
+          context.moveTo(x - 8 * s, y + 10 * s);
+          context.lineTo(x, y - 10 * s);
+          context.lineTo(x + 8 * s, y + 10 * s);
+          context.stroke();
+        }
+        // Volcanic glow
+        if (region.biome === "volcanic") {
+          const glow = 0.5 + 0.5 * Math.sin(now / 600 + seed);
+          context.fillStyle = `rgba(217, 113, 70, ${0.06 + glow * 0.04})`;
+          context.beginPath();
+          context.arc(anchor.x, anchor.y + r * 0.1, r * 0.3, 0, Math.PI * 2);
+          context.fill();
+        }
+      }
+
+      // Subtle overall noise texture for all biomes
+      context.fillStyle = "rgba(255,255,255,0.018)";
+      for (let i = 0; i < 12; i++) {
+        const angle = ((seed + i * 97) % 360) * Math.PI / 180;
+        const dist = ((seed + i * 41) % 80) / 80 * r * 0.65;
+        context.beginPath();
+        context.arc(anchor.x + Math.cos(angle) * dist, anchor.y + Math.sin(angle) * dist, 2.5 * s, 0, Math.PI * 2);
+        context.fill();
+      }
+    }
+
+    // ---- Ambient floating particles per region biome ----
+    function initParticles() {
+      if (state.particlesInitialized) return;
+      state.particlesInitialized = true;
+      const regions = state.worldMap?.regions || [];
+      regions.forEach((region) => {
+        const count = 3 + (hashString(region.id) % 3);
+        for (let i = 0; i < count; i++) {
+          const angle = ((hashString(`${region.id}:p${i}`) % 360) * Math.PI) / 180;
+          const dist = (hashString(`${region.id}:d${i}`) % 60);
+          state.particles.push({
+            regionId: region.id,
+            x: region.anchor.x + Math.cos(angle) * dist,
+            y: region.anchor.y + Math.sin(angle) * dist,
+            vx: (hashString(`${region.id}:vx${i}`) % 100 - 50) / 200,
+            vy: (hashString(`${region.id}:vy${i}`) % 100 - 50) / 200,
+            size: 1.2 + (hashString(`${region.id}:s${i}`) % 20) / 10,
+            phase: (hashString(`${region.id}:ph${i}`) % 628) / 100,
+            biome: region.biome,
+            anchorX: region.anchor.x,
+            anchorY: region.anchor.y,
+          });
+        }
+      });
+    }
+
+    function drawAmbientParticles(context, viewport, now) {
+      initParticles();
+      const maxDrift = 52;
+      state.particles.forEach((p) => {
+        // Gentle orbit with return-to-anchor spring
+        p.vx += Math.sin(now / 2200 + p.phase) * 0.008 - (p.x - p.anchorX) * 0.0004;
+        p.vy += Math.cos(now / 2600 + p.phase) * 0.008 - (p.y - p.anchorY) * 0.0004;
+        p.vx *= 0.985;
+        p.vy *= 0.985;
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Clamp drift
+        const dx = p.x - p.anchorX;
+        const dy = p.y - p.anchorY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxDrift) {
+          p.x = p.anchorX + (dx / dist) * maxDrift;
+          p.y = p.anchorY + (dy / dist) * maxDrift;
+        }
+
+        const pos = worldPointToCanvas(p, viewport);
+        const alpha = 0.22 + 0.28 * Math.sin(now / 700 + p.phase);
+        const color = biomeParticleColor(p.biome);
+        const sz = p.size * viewport.scale;
+
+        // Glow halo
+        context.beginPath();
+        context.arc(pos.x, pos.y, sz * 2.4, 0, Math.PI * 2);
+        context.fillStyle = addAlpha(color, alpha * 0.18);
+        context.fill();
+
+        // Core
+        context.beginPath();
+        context.arc(pos.x, pos.y, sz, 0, Math.PI * 2);
+        context.fillStyle = addAlpha(color, alpha);
+        context.fill();
+      });
+    }
+
+    function biomeParticleColor(biome) {
+      if (biome === "rainforest" || biome === "taiga") return "#8fc97e";
+      if (biome === "desert") return "#e8c06a";
+      if (biome === "volcanic") return "#e09060";
+      if (biome === "fjord" || biome === "archipelago") return "#7ec0cf";
+      if (biome === "wetland" || biome === "riverland") return "#6cb8c0";
+      if (biome === "highland") return "#a9a0cc";
+      if (biome === "steppe") return "#d4be82";
+      return "#d9c8a4";
     }
 
     function roundRect(context, x, y, width, height, radius) {
@@ -3672,7 +3935,7 @@
         for (let r = -ring; r <= ring; r++) {
           if (Math.abs(q + r) > ring) continue;
           const terrain = q === 0 && r === 0
-            ? "nexus"
+            ? "commons"
             : terrains[Math.abs(q * 7 + r * 13 + 5) % terrains.length];
           tiles.push({
             q,

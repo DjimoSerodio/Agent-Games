@@ -187,8 +187,24 @@ export class ObservatoryServer {
       next();
     });
 
+    // Block non-rules routes when accessed via Cloudflare tunnel
+    this.app.use((req, res, next) => {
+      const isTunnel = req.headers["cf-connecting-ip"] || req.headers["cf-ray"];
+      if (isTunnel && !req.path.startsWith("/rules")) {
+        res.status(404).send("Not found");
+        return;
+      }
+      next();
+    });
+
     // Serve static frontend
     const publicDir = path.resolve(__dirname, "../../public");
+
+    // Serve /rules without trailing slash (before static middleware)
+    this.app.get("/rules", (_, res) => {
+      res.sendFile(path.join(publicDir, "rules", "index.html"));
+    });
+
     this.app.use(express.static(publicDir));
 
     // Health check
@@ -309,7 +325,7 @@ export class ObservatoryServer {
 
   private async runSimulation(): Promise<void> {
     const { v4: uuid } = await import("uuid");
-    const { NexusEngine } = await import("../games/nexus/nexus-engine.js");
+    const { ComedyEngine } = await import("../games/nexus/comedy-engine.js");
     const { SimpleAgent } = await import("../agents/simple-agent.js");
 
     const config = {
@@ -334,7 +350,7 @@ export class ObservatoryServer {
       { name: "Dave_Defector", strategy: "defector" as const },
     ];
 
-    const engine = new NexusEngine(config, this.eventBus, this.trustGraph);
+    const engine = new ComedyEngine(config, this.eventBus, this.trustGraph);
     // No artificial delays — game runs at agent response speed.
     // Events stream to Observatory via WebSocket in real-time.
     engine.paceDelayMs = 60;

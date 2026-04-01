@@ -87,11 +87,11 @@ export function generateHexGrid(
   shuffle(terrainPool, rng);
   shuffle(productionNumbers, rng);
 
-  // Center hex is always the Nexus
+  // Center hex is always the Commons
   const centerIdx = positions.findIndex((p) => p.q === 0 && p.r === 0);
   if (centerIdx >= 0) {
-    terrainPool[centerIdx] = "nexus";
-    productionNumbers[centerIdx] = 7; // Nexus produces on 7
+    terrainPool[centerIdx] = "commons";
+    productionNumbers[centerIdx] = 7; // Commons produces on 7
   }
 
   // Create tiles
@@ -125,7 +125,7 @@ function generateTerrainPool(
   playerCount: number,
 ): TerrainType[] {
   // Distribution ratios (roughly):
-  // Plains: 25%, Forest: 25%, Mountains: 20%, Rivers: 15%, Wasteland: 10%, Nexus: 1
+  // Plains: 25%, Forest: 25%, Mountains: 20%, Rivers: 15%, Wasteland: 10%, Commons: 1
   const pool: TerrainType[] = [];
 
   const plainsCount = Math.round(totalHexes * 0.25);
@@ -175,7 +175,7 @@ export function getStartingPositions(
     })
     .filter((c) => {
       const tile = grid.get(hexKey(c));
-      return tile && tile.terrain !== "wasteland" && tile.terrain !== "nexus";
+      return tile && tile.terrain !== "wasteland" && tile.terrain !== "commons";
     });
 
   // Space them out evenly

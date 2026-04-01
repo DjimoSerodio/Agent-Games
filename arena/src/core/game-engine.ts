@@ -3,7 +3,7 @@
  *
  * Base class for all coordination games in the arena.
  * Handles the turn lifecycle, communication routing, and event emission.
- * Specific games (Nexus, Crab Bucket, etc.) extend this.
+ * Specific games (Comedy of the Commons, Crab Bucket, etc.) extend this.
  */
 
 import { v4 as uuid } from "uuid";
@@ -95,6 +95,9 @@ export abstract class GameEngine<TState extends GameState = GameState> {
         entryFeeWei: this.config.entryFeeWei.toString(),
       },
     }, { agents: "all", spectators: true });
+
+    // Hook for subclasses to emit post-start data (e.g. map data)
+    this.onGameStarted();
 
     // Main game loop
     while (!this.state.isFinished) {
@@ -295,6 +298,14 @@ export abstract class GameEngine<TState extends GameState = GameState> {
   // ============================================================
   // Helpers
   // ============================================================
+
+  /**
+   * Hook called after game.started is emitted. Override in subclasses
+   * to emit data that the frontend needs after processing game.started.
+   */
+  protected onGameStarted(): void {
+    // default no-op
+  }
 
   protected async initializeAgents(): Promise<void> {
     const initPromises = Array.from(this.agents.entries()).map(

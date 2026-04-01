@@ -83,7 +83,7 @@ export type GamePhase =
 
 export interface GameConfig {
   id: GameId;
-  type: string; // "nexus", "crab_bucket", "commons", etc.
+  type: string; // "comedy_commons", "crab_bucket", etc.
   maxPlayers: number;
   minPlayers: number;
   maxRounds: number; // Hidden from agents

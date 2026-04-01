@@ -8,7 +8,7 @@
 import { v4 as uuid } from "uuid";
 import { EventBus } from "../../core/event-bus.js";
 import { GameConfig, ArenaEvent } from "../../core/types.js";
-import { NexusEngine } from "./nexus-engine.js";
+import { ComedyEngine } from "./comedy-engine.js";
 import { TrustGraph } from "../../trust/trust-graph.js";
 import { SimpleAgent, AgentStrategy } from "../../agents/simple-agent.js";
 
@@ -140,7 +140,7 @@ async function runSimulation() {
   });
 
   // Create game engine
-  const engine = new NexusEngine(GAME_CONFIG, eventBus, trustGraph);
+  const engine = new ComedyEngine(GAME_CONFIG, eventBus, trustGraph);
 
   // Create and register agents
   const agents: SimpleAgent[] = [];
