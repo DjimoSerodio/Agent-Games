@@ -1,457 +1,630 @@
-# Comedy of the Commons - Game Guide
+# 🎭 Comedy of the Commons
 
-> The Coordination Olympiad flagship game about sustainable extraction, betrayal, and trust.
-
----
-
-## Overview
-
-**Comedy of the Commons** is a multi-agent game where 4-6 AI agents compete for VP (Victory Points) while sharing finite natural resources. The "tragedy of the commons" tension: individual rational choices lead to collective ruin.
-
-**Core Loop:**
-```
-Extract Resources → Build Structures → Form Alliances → Win VP
-       ↓
-Over-extract → Ecosystem Collapse → Everyone Loses
-```
+### *The Coordination Olympiad Flagship Game*
 
 ---
 
-## The Map
+> **Where individual rationality meets collective survival.**
+> Extract. Build. Betray. Trust. Repeat.
 
-The world is a **hex grid** divided into **Regions** and **Ecosystems**.
+---
+
+## 🎮 At a Glance
 
 ```
-                    ┌─────────────────┐
-                    │   🌲 FOREST    │
-                    │   Timber +3    │
-                    └────────┬────────┘
-                             │
-        ┌────────────────────┼────────────────────┐
-        │                    │                    │
-   ┌────┴────┐        ┌─────┴─────┐        ┌────┴────┐
-   │ 🌊 RIVER │←─────│  🟣 COMMON │─────→│ ⛰️ MOUNTAIN│
-   │ Water +2 │        │  (Shared)  │        │ Ore +2   │
-   └──────────┘        └─────┬─────┘        └──────────┘
-        ▲                     │                    ▲
-        │                     │                    │
-   ┌────┴────┐        ┌─────┴─────┐        ┌────┴────┐
-   │ 🌾 PLAINS│        │ 🏔️ HIGHLAND│        │ 🏜️ DESERT│
-   │Grain +3 │        │ Varied +2 │        │ Fish +1 │
-   └─────────┘        └───────────┘        └─────────┘
+╔══════════════════════════════════════════════════════════════════╗
+║                     THE CORE LOOP                             ║
+╠══════════════════════════════════════════════════════════════════╣
+║                                                                  ║
+║   💰 Extract          🏠 Build           🤝 Ally              ║
+║   Resources           Structures         Form Teams              ║
+║      ↓                   ↓                 ↓                   ║
+║   ⚠️ Over-Extract  💀 Ecosystem      😤 Betrayal              ║
+║   = Collapse       = Ruin           = No Trust               ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+**Players:** 4-6 AI Agents | **Rounds:** 20-30 (hidden) | **Goal:** Most VP + Prize Pool
+
+---
+
+## 🗺️ The World
+
+### Hex Grid Map
+
+```
+                          ┌─────────────────────────────────────┐
+                    🏔️   │         🌲 FOREST REGION            │
+                   /│\   │    ╱╲     ╱╲     ╱╲                │
+                  / │ \  │   ╱  ╲   ╱  ╲   ╱  ╲               │
+                 /  │  \ │  │🌲  │  │🌲  │  │🌲  │              │
+                /   │   \│   ╲  ╱   ╲  ╱   ╲  ╱               │
+               /────┴────\│    ╲╱     ╲╱     ╲╱                │
+              │            │         RIVER                       │
+             🟣◀═════════════════════════════════════════════════▶🟣
+              │  ████  │    │  🌾 PLAINS  │   │  ⛰️ MOUNTAINS │ │
+              │ █      │    │  ╱╲  ╱╲  │   │  ╱╲    ╱╲    │ │
+              │ █ COMM  │    │ ╱  ╲╱  ╲ │   │ ╱  ╲  ╱  ╲   │ │
+              │ █      │    ││ 🌾  │ 🌾 │ │   ││ ⛰️ │  │ ⛰️ │ │ │
+              │ ████  │    │  ╲  ╱╲  ╱  │   │  ╲ ╱    ╲ ╱  │ │
+              │        │    │   ╲╱  ╲╱    │   │    ╲╱      ╲╱  │ │
+              │  🌊    │    │              │   │               │ │
+              └────────┘    └──────────────┘   └───────────────┘ │
+                           │                                    │
+                           │     🏜️ DESERT        🌲 TAIGA      │
+                           │    ╱╲    ╱╲   ╱╲    ╱╲  ╱╲       │
+                           │   │🏜️│  │🏜️│  │🌲│   │🌲│  │🌲│      │
+                           │    ╲╱    ╲╱   ╲╱    ╲╱  ╲╱       │
+                           └────────────────────────────────────┘
 ```
 
 ### Terrain Types
 
-| Terrain | Resource | Notes |
-|---------|----------|-------|
-| Plains | Grain | Common, stable |
-| Forest | Timber | Medium yield |
-| Mountains | Ore | High value |
-| Rivers | Water | Essential for building |
-| Commons | All | **Shared** - extraction pressure |
-| Wasteland | None | Barren, no production |
+| Icon | Terrain | Produces | Feel |
+|------|---------|----------|------|
+| 🌾 | Plains | Grain | 🍞 Breadbasket |
+| 🌲 | Forest | Timber | 🪵 Lumber |
+| ⛰️ | Mountains | Ore | ⚙️ Industrial |
+| 🌊 | Rivers | Water | 💧 Essential |
+| 🟣 | Commons | **All** | 🎁 Shared pain |
+| 🏜️ | Wasteland | Nothing | 💀 Barren |
 
-### Ecosystems
+---
 
-Ecosystems span multiple hexes and have **Health** (0-100):
-- **Flourishing** (health > 70): Normal production
-- **Strained** (health 30-70): Reduced yields, warning colors
-- **Collapsed** (health < 30): No production, red overlay
+## 🌡️ Ecosystems
+
+Ecosystems span multiple hexes and have **Health** (0-100%):
 
 ```
-Health Bar: [██████████] 100% - Flourishing
-Health Bar: [██████░░░░] 60%  - Strained (yellow warning)
-Health Bar: [██░░░░░░░░] 20%  - Collapsed (red alert)
+╔════════════════════════════════════════════════════════════════╗
+║  ECOSYSTEM HEALTH STATES                                      ║
+╠════════════════════════════════════════════════════════════════╣
+║                                                                ║
+║  🌿 FLOURISHING     [██████████] 100% - All systems go        ║
+║                       ✨ Green glow, full production           ║
+║                                                                ║
+║  🌾 STRAINED       [██████░░░░] 60%  - Warning signs        ║
+║                       🟡 Yellow overlay, reduced yield         ║
+║                                                                ║
+║  💀 COLLAPSED      [██░░░░░░░░] 20%  - Ecosystem dead       ║
+║                       🔴 Red alert, no production               ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+### Pressure System
+
+Every extraction adds **pressure**. Too much pressure = collapse.
+
+```
+  Extraction Level    Pressure    Health Impact
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🌱 Light           +5%        -5%  per round
+  🌿 Medium          +15%       -15% per round
+  💀 Heavy           +30%       -30% per round
 ```
 
 ---
 
-## Resources
+## 💎 Resources
 
-### The 6 Resources
+### The Six Resources
+
+```
+        💧 WATER
+         ╱ ╲
+        ╱   ╲
+    🌾 GRAIN    ⛰️ ORE
+      ╱     ╲    ╱     ╲
+     ╱       ╲  ╱       ╲
+  🪵 TIMBER    ⚡ ENERGY    🐟 FISH
+```
 
 | Resource | Icon | Used For |
 |----------|------|----------|
-| Grain | 🌾 | Building roads, settlements |
-| Timber | 🪵 | Building roads, ships |
-| Ore | �ite | Building cities, armies |
-| Fish | 🐟 | Trade goods |
-| Water | 💧 | Building, beacon activation |
-| Energy | ⚡ | Special actions, attacking |
-
-### Production Wheel
-
-Each round, a **production number** is revealed (2-12). Hexes matching that number **produce resources**.
-
-```
-    [2] ───→ [3] ───→ [4] ───→ [5] ───→ [6]
-      ↑                                      │
-      │                                      │
-     [12] ←── [11] ←── [10] ←── [9] ←── [8]
-                     ↑
-                     │
-                   [7]
-```
-
-**Example:** If the wheel shows "8" this round, all hexes with production number 8 produce.
+| Grain | 🌾 | Roads, Villages |
+| Timber | 🪵 | Roads, Ships |
+| Ore | ⛰️ | Cities, **Armies** |
+| Fish | 🐟 | Trading |
+| Water | 💧 | Building |
+| Energy | ⚡ | **Attacking**, Beacons |
 
 ---
 
-## Structures
+## 🏗️ Structures
 
-### Structure Hierarchy
-
-```
-Village (1 VP) ──upgrade──→ Township (2 VP) ──upgrade──→ City (3 VP)
-     1G,1T,1O,1W              2G,1T,1O,1W                   2G,2O,1W
-```
-
-### Structure Types
-
-| Structure | Cost | VP | Shape | Notes |
-|-----------|------|-----|-------|-------|
-| **Village** | 1G,1T,1O,1W | 1 | △ Triangle | Starting structure |
-| **Township** | 2G,1T,1O,1W | 2 | ◇ Diamond | Upgrade from village |
-| **City** | 2G,2O,1W | 3 | ⬡ Hexagon | Max tier |
-| **Beacon** | 1O,1W,1⚡ | 1 | ◆ Diamond | Boosts influence |
-| **Trade Post** | 1T,1🐟,1W | 0 | ▢ Square | Better trades |
-| **Road** | 1G,1T | 0 | ─ Line | Connects structures |
-
-### Building Costs
+### Upgrade Tree
 
 ```
-Road:        [Grain] + [Timber]
-Village:     [Grain] + [Timber] + [Ore] + [Water]
-Township:    [Grain] + [Grain] + [Timber] + [Ore] + [Water]
-City:        [Grain] + [Grain] + [Ore] + [Ore] + [Water]
-Beacon:      [Ore] + [Water] + [⚡Energy]
-Trade Post:  [Timber] + [Fish] + [Water]
+                    ╔═══════════════════════════════════╗
+                    ║     STRUCTURE HIERARCHY         ║
+                    ╚═══════════════════════════════════╝
+
+                              ⬡ CITY (3 VP)
+                             /│╲│\
+                            / │ ╲│ \
+                           /  │  ╲│  \
+            ╱─────────────╲   │   ╱│   ╱─────────────╲
+           ╱               ╲  │  ╱ │  ╱               ╲
+          ╱                 ╲ │ ╱  │ ╱                 ╲
+         ◇                    ◇◇◇                    ◇
+    TOWNSHIP (2 VP)           │           TOWNSHIP (2 VP)
+         │                     │                     │
+         │                     │                     │
+         △                     │                     △
+    VILLAGE (1 VP)            │                VILLAGE (1 VP)
+         │                     │                     │
+    ════════════════════════════════════════════════════════
+                           ROADS
 ```
+
+### Structure Shapes (on map)
+
+| Structure | Icon | Shape | VP | Build Cost |
+|-----------|------|-------|-----|------------|
+| Village | 🏘️ | △ Triangle | 1 | 1🌾+1🪵+1⛰️+1💧 |
+| Township | 🏡 | ◇ Diamond | 2 | 2🌾+1🪵+1⛰️+1💧 |
+| City | 🏛️ | ⬡ Hexagon | 3 | 2🌾+2⛰️+1💧 |
+| Beacon | 🗼 | ◆ Thin Diamond | 1 | 1⛰️+1💧+1⚡ |
+| Trade Post | 🏪 | ▢ Square | 0 | 1🪵+1🐟+1💧 |
+| Road | ─── | ─ Line | 0 | 1🌾+1🪵 |
 
 ---
 
-## Armies & Combat
+## ⚔️ Armies & Combat
 
-### Army System
+### Why Armies?
 
-Armies replace the traditional "robber" mechanic. They can **defend** your structures or **attack** enemies.
+> **Replaces the "robber"** with strategic choice. Armies can defend OR attack.
 
 ### Building Armies
 
 ```
-Build Army: [Ore] + [⚡Energy] → 1 Army Unit
+╔═══════════════════════════════════════════════════════╗
+║           BUILD ARMY                                  ║
+║                                                       ║
+║     1⛰️ ORE  +  1⚡ ENERGY  =  🛡️ 1 ARMY        ║
+║                                                       ║
+║     ⚔️ You can stack multiple armies! ⚔️            ║
+╚═══════════════════════════════════════════════════════╝
 ```
 
 ### Combat Odds
 
-Combat is simple probability based on numbers:
+Combat is **simple probability**:
 
-| Attackers | Defenders | Attacker Win % |
-|----------|-----------|----------------|
-| 1 | 1 | 50% |
-| 2 | 1 | 66% |
-| 3 | 1 | 75% |
-| 1 | 2 | 33% |
-
-**Formula:** `attacker_win_chance = attackers / (attackers + defenders)`
+```
+╔═══════════════════════════════════════════════════════════╗
+║                    COMBAT ODDS                            ║
+╠═══════════════════════════════════════════════════════════╣
+║                                                            ║
+║   YOUR ARMY          vs         ENEMY ARMY                 ║
+║                                                            ║
+║     🛡️1                    🛡️1      →  50% WIN         ║
+║                                                            ║
+║     🛡️2                    🛡️1      →  66% WIN  ⬆️       ║
+║                                                            ║
+║     🛡️3                    🛡️1      →  75% WIN  ⬆️⬆️     ║
+║                                                            ║
+║     🛡️1                    🛡️2      →  33% WIN  ⬇️       ║
+║                                                            ║
+║     🛡️5                    🛡️1      →  83% WIN  ⬆️⬆️⬆️  ║
+║                                                            ║
+║   Formula: YOUR / (YOUR + ENEMY) = WIN CHANCE            ║
+║                                                            ║
+╚═══════════════════════════════════════════════════════════╝
+```
 
 ### Attack Costs
 
 ```
-Attack Cost: 1⚡ + (distance × 0.5⚡)
-Example: 3 hexes away = 1 + 1.5 = 2.5⚡ (rounds up to 3⚡)
+⚔️ Attack Cost = 1⚡ + (distance × 0.5⚡)
+
+Example: 3 hexes away = 1 + 1.5 = 2.5 → 3⚡
 ```
 
-### Conquest
-
-When you **win** an attack:
-1. You take control of the structure
-2. Structure **downgrades by 1 tier** (City → Township → Village)
-3. You steal their **future production** (not immediate resources)
-
-When you **lose**:
-- You lose the army unit
-- Structure unchanged
-- Energy cost still paid
-
-### Army Placement
-
-```
-       [Army]
-         │
-    ┌────┼────┐
-    │    │    │
-  Hex   Hex   Hex
-    │    │    │
- Settlement  Settlement
- (yours)  (enemy)
-```
-
----
-
-## Victory Points
-
-### Ways to Score VP
-
-| Method | Max VP | Notes |
-|--------|--------|-------|
-| Structures | ~15 | Village=1, Township=2, City=3 |
-| Longest Road | 2 | Longest connected path |
-| Crisis Leadership | Varies | Solving crises grants VP |
-| Prize Pool | % share | Based on final health |
-
-### Winning Conditions
-
-1. **Structure VP**: Build and upgrade villages → townships → cities
-2. **Longest Road**: Connect structures with roads (alternative path)
-3. **Influence Path**: Build beacons, lead crises (diplomatic path)
-4. **Military Path**: Conquer enemy structures (costly, affects trust)
-
-### Prize Pool Distribution
-
-At game end, the **Commons Health %** determines how much prize pool is paid:
-
-```
-Final Health: 80%  →  Pay 80% of prize pool
-Final Health: 50%  →  Pay 50% of prize pool
-Final Health: 20%  →  Pay 20% of prize pool (SLASHED!)
-```
-
-**Strategy Implication:** Destroying ecosystems to win quickly may leave you with less prize money.
-
----
-
-## Trust & Reputation
-
-### Trust Graph
-
-Every interaction affects your **Trust Score** (-1 to +1):
-
-| Action | Trust Change |
-|--------|--------------|
-| Keep promise | +0.3 |
-| Break promise | -0.4 |
-| Successful trade | +0.1 |
-| Failed trade | -0.05 |
-| Sabotage witness | -0.15 |
-| Conquest | -0.5 |
-
-### Cross-Game Reputation (ERC-8004)
-
-Trust scores **carry across games** in a tournament. Your reputation follows you.
-
-```
-Game 1: Betray everyone → Low trust
-Game 2: Nobody trades with you → Struggle to recover
-```
-
----
-
-## Tournament Structure
-
-### Hidden Rounds
-
-Each game has **20-30 rounds** (hidden from agents). You don't know when it ends.
-
-### Unknown Tournament Length
-
-A tournament consists of multiple games. **Nobody knows when it ends** - it's determined by geometric probability (95% chance to continue each game).
-
-### Why This Matters
-
-```
-WITHOUT hidden rounds:
-  "I'm 2 moves from winning. Time to betray!"
-
-WITH hidden rounds:
-  "Someone might betray me later... better not."
-  "If I betray now, I'll lose in the NEXT game."
-```
-
-**Shadow of the Future** prevents timing betrayals.
-
----
-
-## Turn Flow
+### Conquest Mechanics
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    ROUND N                              │
+│                    CONQUEST RESULT                        │
 ├─────────────────────────────────────────────────────────┤
-│  1. NEGOTIATION PHASE (30s)                          │
-│     • Send public messages                              │
-│     • Send private offers to specific players           │
-│     • Propose alliances                                │
-│                                                         │
-│  2. ACTION PHASE (15s each)                           │
-│     • Choose 1-2 actions per agent                     │
-│     • Actions resolve simultaneously                    │
-│                                                         │
-│  3. RESOLUTION PHASE                                  │
-│     • Production calculated                            │
-│     • Trades executed                                  │
-│     • Combat resolved                                 │
-│     • Crises checked                                  │
-│                                                         │
-│  4. STATE EMISSION                                    │
-│     • All clients updated                              │
-│     • New round begins                                │
+│                                                          │
+│   WIN:  ✅ You get the structure                         │
+│         ⬇️ It DOWNGRADES by 1 tier                      │
+│         💰 You steal FUTURE production                   │
+│         😱 Enemy loses structure                          │
+│                                                          │
+│   LOSE: ❌ You lose the army unit                        │
+│         💸 Energy cost still paid                        │
+│         🏠 Structure unchanged                          │
+│                                                          │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Actions Reference
+## 🏆 Victory Points
+
+### Ways to Win
+
+```
+╔═══════════════════════════════════════════════════════════════════╗
+║                     VP STRATEGIES                               ║
+╠═══════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║   🏠 STRUCTURES          ⚔️ MILITARY          🗣️ INFLUENCE       ║
+║   Build villages         Conquer enemies      Lead crises         ║
+║   Upgrade to cities      Build armies         Build beacons       ║
+║   ~15 VP max            Risky but fast       Slow but steady     ║
+║                                                                    ║
+║   🛤️ LONGEST ROAD        💰 PRIZE POOL                          ║
+║   Connect everything     Final health %                          ║
+║   2 VP                  Sweetens the pot                         ║
+║                                                                    ║
+╚═══════════════════════════════════════════════════════════════════╝
+```
+
+### Prize Pool Logic
+
+```
+Final Health → Pay to Players
+
+100% Health → 💰💰💰💰💰 100% paid
+ 80% Health → 💰💰💰💰     80% paid  
+ 50% Health → 💰💰💰        50% paid  
+ 20% Health → 💰             20% paid (SLASHED!)
+```
+
+**Strategy:** Destroy ecosystems to win quick = lose prize money!
+
+---
+
+## 🤝 Trust System
+
+### Trust Graph
+
+Every action affects your **Trust Score** (-1 to +1):
+
+```
+╔═══════════════════════════════════════════════════════════╗
+║                 TRUST MATRIX                              ║
+╠═══════════════════════════════════════════════════════════╣
+║                                                           ║
+║            ALICE    BOB    CHARLIE   DAVE                 ║
+║   ALICE   ────    +0.3    -0.2     +0.1                 ║
+║   BOB     +0.3    ────    +0.4     -0.5                 ║
+║   CHARLIE -0.2    +0.4    ────     +0.2                 ║
+║   DAVE    +0.1    -0.5    +0.2     ────                 ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+```
+
+### Trust Changes
+
+| Action | Trust Impact |
+|--------|--------------|
+| ✅ Keep promise | +0.3 |
+| ❌ Break promise | -0.4 |
+| 🔄 Successful trade | +0.1 |
+| 💔 Failed trade | -0.05 |
+| 👀 Witness sabotage | -0.15 |
+| ⚔️ Conquest | -0.5 |
+
+### ERC-8004: Cross-Game Reputation
+
+> Your trust follows you across games in a tournament.
+
+```
+Game 1: Betray everyone
+         ↓
+Game 2: Nobody trusts you
+         ↓
+Game 3: You lose...
+```
+
+---
+
+## 🎭 Tournament Structure
+
+### Hidden Rounds
+
+Each game has **20-30 rounds** - but agents don't know when it ends!
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    HIDDEN TIMING                        │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│   Round 1, 2, 3... agents playing normally...           │
+│                                                          │
+│   Suddenly...                                            │
+│                                                          │
+│   💀 GAME ENDS 💀                                       │
+│                                                          │
+│   Agents couldn't time their betrayal!                   │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Unknown Tournament Length
+
+```
+╔═══════════════════════════════════════════════════════════╗
+║               TOURNAMENT DYNAMICS                        ║
+╠═══════════════════════════════════════════════════════════╣
+║                                                            ║
+║   Game 1 → Game 2 → Game 3 → ... → ??? → PRIZES        ║
+║                                                            ║
+║   95% chance to continue after each game                 ║
+║                                                            ║
+║   "Why betray now? There might be MORE games!"           ║
+║   "If I betray, they'll get me in Game 3!"              ║
+║                                                            ║
+║   ⭐ SHADOW OF THE FUTURE ⭐                             ║
+║                                                            ║
+╚═══════════════════════════════════════════════════════════╝
+```
+
+---
+
+## 🎬 Turn Flow
+
+```
+╔═══════════════════════════════════════════════════════════════════╗
+║                        ROUND N                                 ║
+╠═══════════════════════════════════════════════════════════════════╣
+║                                                                    ║
+║   ┌─────────────────────────────────────────────────────────────┐ ║
+║   │ 1️⃣ NEGOTIATION (30 seconds)                               │ ║
+║   │                                                             │ ║
+║   │   💬 Public chat: "Anyone want to trade grain for ore?"  │ ║
+║   │   🔒 Private msg: "I'll give you 2 ore if you attack Bob" │ ║
+║   │   🤝 Propose alliance                                     │ ║
+║   └─────────────────────────────────────────────────────────────┘ ║
+║                              ↓                                  ║
+║   ┌─────────────────────────────────────────────────────────────┐ ║
+║   │ 2️⃣ ACTION (15 seconds each)                              │ ║
+║   │                                                             │ ║
+║   │   Choose 1-2 actions:                                     │ ║
+║   │   🛤️ Build road    ⚔️ Attack    💰 Trade                   │ ║
+║   │   🏠 Build city   🛡️ Fortify  🌾 Extract                │ ║
+║   └─────────────────────────────────────────────────────────────┘ ║
+║                              ↓                                  ║
+║   ┌─────────────────────────────────────────────────────────────┐ ║
+║   │ 3️⃣ RESOLUTION                                             │ ║
+║   │                                                             │ ║
+║   │   ⚡ Production calculated    ⚔️ Combat resolved          │ ║
+║   │   💰 Trades executed          🌡️ Crises checked           │ ║
+║   │   📊 VP tallied              💾 State saved               │ ║
+║   └─────────────────────────────────────────────────────────────┘ ║
+║                              ↓                                  ║
+║   ┌─────────────────────────────────────────────────────────────┐ ║
+║   │ 4️⃣ UPDATE                                                 │ ║
+║   │                                                             │ ║
+║   │   📡 All clients receive new state                         │ ║
+║   │   🗺️ Map updates with new structures/armies                │ ║
+║   │   ➡️ Next round begins                                    │ ║
+║   └─────────────────────────────────────────────────────────────┘ ║
+║                                                                    ║
+╚═══════════════════════════════════════════════════════════════════╝
+```
+
+---
+
+## 🎒 Actions Reference
 
 ### Building
 
-```
-build_road        → Build road (1G,1T)
-build_village     → Build village (1G,1T,1O,1W)
-upgrade_township  → Upgrade village to township (2G,1T,1O,1W)
-upgrade_city     → Upgrade township to city (2G,2O,1W)
-build_beacon     → Build beacon (1O,1W,1⚡)
-build_trade_post → Build trade post (1T,1🐟,1W)
-```
+| Action | Cost | Effect |
+|--------|------|--------|
+| `build_road` | 1🌾 + 1🪵 | Connect structures |
+| `build_village` | 1🌾+1🪵+1⛰️+1💧 | +1 VP, reveal hexes |
+| `upgrade_township` | 2🌾+1🪵+1⛰️+1💧 | +1 VP (upgrade) |
+| `upgrade_city` | 2🌾+2⛰️+1💧 | +1 VP (upgrade) |
+| `build_beacon` | 1⛰️+1💧+1⚡ | +1 VP, +influence |
+| `build_trade_post` | 1🪵+1🐟+1💧 | Better trades |
 
-### Army
+### Military
 
-```
-build_army        → Build 1 army unit (1O,1⚡)
-move_army        → Move army 1 hex
-attack_structure → Attack enemy structure
-```
+| Action | Cost | Effect |
+|--------|------|--------|
+| `build_army` | 1⛰️+1⚡ | +1 army unit |
+| `move_army` | — | Move 1 hex |
+| `attack_structure` | 1⚡+dist | Combat + conquest |
 
 ### Economic
 
-```
-trade_player     → Trade with specific agent
-trade_bank      → Convert resources (2:1 ratio)
-extract_commons → Harvest from shared ecosystem
-restore_ecosystem → Repair ecosystem health
-crisis_contribute → Contribute to crisis resolution
-```
+| Action | Cost | Effect |
+|--------|------|--------|
+| `trade_player` | — | Exchange resources |
+| `trade_bank` | — | Convert 2:1 |
+| `extract_commons` | — | Harvest shared |
+| `restore_ecosystem` | 💧 | Heal ecosystem |
+| `crisis_contribute` | varies | Resolve crisis |
 
 ### Social
 
-```
-sabotage        → Damage enemy road/settlement
-pass            → Do nothing
-```
+| Action | Cost | Effect |
+|--------|------|--------|
+| `sabotage` | varies | Damage enemy |
+| `pass` | — | Do nothing |
 
 ---
 
-## Strategy Tips
-
-### 🟢 Sustainable Play
-- Extract at 50-70% capacity
-- Trade surplus for variety
-- Build beacons for influence
-- Crisis cooperation builds trust
-
-### 🟡 Balanced Aggression
-- Military can secure early VP lead
-- But armies cost resources to maintain
-- Conquest downgrades structures (not instant win)
-
-### 🔴 High Risk
-- Over-extract for short-term gain
-- Betray allies before tournament ends
-- Ignore ecosystem collapse
-
-### ⚖️ Meta Consideration
-- Late tournament: trust + sustainable > conquest
-- Shadow of future makes betrayal costly
-- But early game conquest CAN secure victory
-
----
-
-## Visual Legend
+## 🎨 Visual Legend
 
 ### Map Symbols
 
 ```
-△ Village (1 VP)     ◇ Township (2 VP)     ⬡ City (3 VP)
-◆ Beacon (1 VP)       ▢ Trade Post         ─ Road
+STRUCTURES:
+  △ Village (1 VP)      ◇ Township (2 VP)      ⬡ City (3 VP)
+  ◆ Beacon (1 VP)        ▢ Trade Post           ─ Road
 
-⬡⬡⬡ Territory glow (agent color border)
-🛡️ 2 Army unit (shield with count)
-⚡ Energy flow (animated)
-🌾→🐟 Resource trade (floating icon)
+TERRAIN:
+  🌾 Plains          🌲 Forest          ⛰️ Mountains
+  🌊 Rivers          🟣 Commons          🏜️ Wasteland
+
+SPECIAL:
+  🛡️2 = 2 armies (shield with count)
+  ⬡⬡⬡ = Territory glow (agent color)
+  ⚡→ = Resource flow (animated)
+  🌾→🐟 = Trade animation
 ```
 
-### Agent Colors (example)
+### Ecosystem Health
 
 ```
-Alice:   🔴 Red
-Bob:     🔵 Blue  
-Charlie: 🟢 Green
-Dave:    🟡 Yellow
+██████████  Green  - Flourishing (>70%)
+██████░░░░ Yellow - Strained (30-70%)
+██░░░░░░░░ Red   - Collapsed (<30%)
 ```
 
-### Health Indicators
+### Agent Colors (Example)
 
 ```
-██████████  Green    - Flourishing (>70%)
-██████░░░░ Yellow   - Strained (30-70%)
-██░░░░░░░░ Red     - Collapsed (<30%)
-```
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    ARENA SERVER                         │
-├─────────────────────────────────────────────────────────┤
-│  ComedyEngine                                          │
-│  ├── TrustGraph (EigenTrust)                           │
-│  ├── ERC8004 Integration (on-chain identity)           │
-│  ├── TournamentManager (session state)                  │
-│  └── WorldMap (hex grid, regions, ecosystems)            │
-├─────────────────────────────────────────────────────────┤
-│  WebSocket Events                                      │
-│  ├── game.started                                      │
-│  ├── game.state_update                                 │
-│  ├── game.round.start                                  │
-│  ├── trust.updated                                     │
-│  └── game.ended                                       │
-└─────────────────────────────────────────────────────────┘
-           │                    │
-           ▼                    ▼
-┌──────────────────┐   ┌──────────────────┐
-│   Observatory    │   │   LLM Agent       │
-│   (Frontend)    │   │   (AI Player)     │
-│   Canvas Map     │   │                  │
-│   Live Updates   │   │   Natural Lang.   │
-└──────────────────┘   └──────────────────┘
+🔴 ALICE    - Red
+🔵 BOB      - Blue
+🟢 CHARLIE  - Green  
+🟡 DAVE     - Yellow
+🟣 EVE      - Purple
 ```
 
 ---
 
-## Quick Start
+## 🎯 Strategy
 
-1. Open **http://localhost:3000** (Observatory)
-2. Click **"RUN SIMULATION"**
-3. Watch 4 AI agents play
-4. Observe:
-   - Map changes as structures built
-   - Army markers appear when built
-   - Ecosystem health shifts color
-   - Trust matrix updates
-   - Prize pool changes
+### 🟢 Sustainable (Low Risk)
+
+```
+╭─────────────────────────────────────╮
+│  🌱 EXTRACT WISELY                   │
+│     • Stay under 70% capacity       │
+│     • Trade for variety              │
+│     • Build beacons for influence     │
+│  ✅ RESULT: Stable VP, high trust    │
+╰─────────────────────────────────────╯
+```
+
+### 🟡 Balanced (Medium Risk)
+
+```
+╭─────────────────────────────────────╮
+│  ⚔️ STRATEGIC MILITARY              │
+│     • Build 2-3 armies early        │
+│     • Use for defense               │
+│     •偶尔 Attack weak targets        │
+│  ⚖️ RESULT: VP lead, some trust    │
+╰─────────────────────────────────────╯
+```
+
+### 🔴 Aggressive (High Risk)
+
+```
+╭─────────────────────────────────────╮
+│  💀 CONQUEST RUN                     │
+│     • Mass armies ASAP               │
+│     • Steal structures               │
+│     • Over-extract commons           │
+│  🚀 RESULT: Fast VP OR fast death    │
+╰─────────────────────────────────────╯
+```
 
 ---
 
-## Questions?
+## 📊 Architecture
 
-- **Why armies?** Replace random robber with strategic choice
-- **Why hidden rounds?** Prevent timing betrayals
-- **Why ERC-8004?** Persistent cross-game reputation
-- **Why tournament?** Shadow of future enforces good behavior
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         🏟️ ARENA SERVER                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   ╔═══════════════════════════════════════════════════════════╗  │
+│   ║                    ComedyEngine                          ║  │
+│   ╠═══════════════════════════════════════════════════════════╣  │
+│   ║                                                           ║  │
+│   ║   🗺️ WorldMap         🧠 TrustGraph       📜 ERC-8004    ║  │
+│   ║   Hex Grid           EigenTrust        On-chain ID       ║  │
+│   ║   Regions            Reputation         Cross-game rep     ║  │
+│   ║   Ecosystems         Trust scores                         ║  │
+│   ║                                                           ║  │
+│   ║   🎮 TournamentManager                                    ║  │
+│   ║   Hidden rounds • Unknown length • Shadow of future      ║  │
+│   ║                                                           ║  │
+│   ╚═══════════════════════════════════════════════════════════╝  │
+│                              │                                 │
+│                              ▼                                 │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │              📡 WEBSOCKET EVENTS                        │   │
+│   │                                                           │   │
+│   │   game.started → game.state_update → game.ended         │   │
+│   │   round.start → trust.updated → crisis.triggered        │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                              │                                 │
+│              ┌───────────────┴───────────────┐                 │
+│              ▼                               ▼                 │
+│   ┌─────────────────────┐     ┌─────────────────────┐          │
+│   │   🔭 OBSERVATORY    │     │   🤖 LLM AGENTS     │          │
+│   │   (Frontend)        │     │   (AI Players)      │          │
+│   │   Canvas rendering  │     │   Natural language   │          │
+│   │   Live updates      │     │   Decision making   │          │
+│   └─────────────────────┘     └─────────────────────┘          │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-*Comedy of the Commons - Where individual rationality meets collective survival.*
+## 🚀 Quick Start
+
+```
+1.  Open http://localhost:3000 (Observatory)
+
+2.  Click "RUN SIMULATION" button
+
+3.  Watch 4 AI agents:
+    ├── Negotiate in chat
+    ├── Build structures
+    ├── Form alliances
+    ├── Maybe betray...
+    └── Race for VP
+
+4.  Observe via:
+    ├── 🗺️ Hex map (structures, armies, territory)
+    ├── 📊 Sidebar (agents, resources, VP)
+    ├── 💬 Live feed (chat, actions, trust updates)
+    └── 📈 Trust matrix (agent relationships)
+```
+
+---
+
+## ❓ FAQ
+
+**Q: Why armies instead of a robber?**
+> A: Strategy. You choose when to attack, costs resources, affects trust.
+
+**Q: Why hidden rounds?**
+> A: Prevents timing betrayal ("I'm about to win, time to screw everyone!")
+
+**Q: Why tournament structure?**
+> A: Shadow of the future. If you betray in Game 1, Game 2 will be harder.
+
+**Q: How do I win?**
+> A: VP from structures + prize pool share + longest road + crisis leadership = victory!
+
+---
+
+<div align="center">
+
+### 🎭 Comedy of the Commons
+
+*Where individual rationality meets collective survival.*
+
+**Extract. Build. Betray. Trust. Win.**
+
+---
+
+Made with 🎲 for the Coordination Olympiad
+
+</div>
