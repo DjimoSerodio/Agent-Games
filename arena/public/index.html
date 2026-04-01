@@ -1533,6 +1533,7 @@
       recentExtractions: [],
       mapActivity: [],
       trustMatrix: { agents: [], matrix: [] },
+      armies: [],
       feed: [],
       renderQueued: false,
       structureOffsets: new Map(),
@@ -1912,6 +1913,20 @@
           target.structureLocations = source.structureLocations || [];
           target.longestRoad = source.longestRoad ?? target.longestRoad;
         });
+
+        // Collect all armies from all agents
+        const allArmies = [];
+        ids.forEach((agentId) => {
+          const source = data.agentStates[agentId];
+          if (source && Array.isArray(source.armies)) {
+            source.armies.forEach((army) => {
+              allArmies.push({ ...army, ownerAgentId: agentId });
+            });
+          }
+        });
+        if (allArmies.length > 0) {
+          state.armies = allArmies;
+        }
       }
 
       if (Array.isArray(data.commitments)) {
@@ -2399,7 +2414,8 @@
               ${renderResourceChip("energy", resources.energy || 0)}
             </div>
             <div class="agent-structure-row">
-              ${renderStructurePill("settlement", structures.settlements || 0)}
+              ${renderStructurePill("village", structures.villages || 0)}
+              ${renderStructurePill("township", structures.townships || 0)}
               ${renderStructurePill("city", structures.cities || 0)}
               ${renderStructurePill("beacon", structures.beacons || 0)}
               ${renderStructurePill("post", structures.tradePosts || 0)}
@@ -2622,13 +2638,16 @@
         drawHexGridBg(context, viewport, now);
         drawEcosystemLinks(context, viewport);
         drawWorldRegions(context, viewport, now);
+        drawTerritoryControl(context, viewport);
         drawWorldEcosystems(context, viewport, now);
         drawWorldRoads(context, viewport);
         drawWorldStructures(context, viewport);
+        drawArmies(context, viewport, now);
         drawActivityBursts(context, viewport, now);
         drawAmbientParticles(context, viewport, now);
         drawWorldAgentHomes(context, viewport, now);
         drawTradeBursts(context, viewport, now);
+        drawResourceFlows(context, viewport, now);
         drawBoardHud(context, width, height);
         return;
       }
@@ -2949,6 +2968,201 @@
       });
     }
 
+    // ---- Draw territory control coloring ----
+    function drawTerritoryControl(context, viewport) {
+      const regions = state.worldMap?.regions || [];
+      const HEX_R = state.worldMap?.hexSize || 90;
+      
+      // Build territory map: region -> controlling agent
+      const territoryControl = new Map();
+      state.agentOrder.forEach((agentId) => {
+        const agent = state.agents[agentId];
+        if (!agent) return;
+        (agent.structureLocations || []).forEach((location) => {
+          if (location.type === "road" || location.type === "trade_post") return;
+          const region = location.regionId ? getRegion(location.regionId) : getRegionFromHex(location.hexes?.[0]);
+          if (region) {
+            const existing = territoryControl.get(region.id);
+            if (!existing || location.type === "city") {
+              territoryControl.set(region.id, { agentId, color: agent.color, type: location.type });
+            }
+          }
+        });
+      });
+
+      // Draw territory influence zones
+      regions.forEach((region) => {
+        const controller = territoryControl.get(region.id);
+        if (!controller) return;
+        
+        const anchor = worldPointToCanvas(region.anchor, viewport);
+        const r = HEX_R * viewport.scale;
+        
+        // Territory glow
+        context.save();
+        drawHexPath(context, anchor.x, anchor.y, r + 4 * viewport.scale);
+        context.strokeStyle = addAlpha(controller.color, 0.4);
+        context.lineWidth = 3 * viewport.scale;
+        context.shadowColor = controller.color;
+        context.shadowBlur = 12 * viewport.scale;
+        context.stroke();
+        context.restore();
+        
+        // Agent initial badge
+        const agent = state.agents[controller.agentId];
+        if (agent) {
+          context.save();
+          context.font = `bold ${10 * viewport.scale}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+          context.textAlign = "center";
+          context.textBaseline = "middle";
+          context.fillStyle = controller.color;
+          context.shadowColor = "rgba(0,0,0,0.8)";
+          context.shadowBlur = 4;
+          context.fillText(agent.name.charAt(0).toUpperCase(), anchor.x, anchor.y + r * 0.55);
+          context.restore();
+        }
+      });
+    }
+
+    // ---- Draw army positions and counts ----
+    function drawArmies(context, viewport, now) {
+      if (!state.armies || state.armies.length === 0) return;
+      
+      const HEX_R = state.worldMap?.hexSize || 90;
+      
+      state.armies.forEach((army) => {
+        // Find the hex position
+        const hex = state.hexGrid.find(h => h.q === army.position.q && h.r === army.position.r);
+        if (!hex) return;
+        
+        const pos = hexToPixel(hex.q, hex.r, 0, 0, HEX_R);
+        const anchor = { 
+          x: viewport.offsetX + (viewport.width / 2 + pos.x) * viewport.scale,
+          y: viewport.offsetY + (viewport.height / 2 + pos.y) * viewport.scale
+        };
+        
+        const agent = state.agents[army.owner];
+        const color = agent?.color || "#ff6600";
+        
+        // Army marker - shield shape
+        const size = 14 * viewport.scale;
+        const pulse = 0.8 + 0.2 * Math.sin(now / 300 + army.position.q * 0.5 + army.position.r * 0.5);
+        
+        context.save();
+        
+        // Glow effect
+        context.shadowColor = color;
+        context.shadowBlur = 8 * viewport.scale * pulse;
+        
+        // Shield background
+        context.beginPath();
+        context.moveTo(anchor.x, anchor.y - size);
+        context.lineTo(anchor.x + size * 0.8, anchor.y - size * 0.3);
+        context.lineTo(anchor.x + size * 0.6, anchor.y + size * 0.6);
+        context.lineTo(anchor.x, anchor.y + size * 0.9);
+        context.lineTo(anchor.x - size * 0.6, anchor.y + size * 0.6);
+        context.lineTo(anchor.x - size * 0.8, anchor.y - size * 0.3);
+        context.closePath();
+        context.fillStyle = addAlpha(color, 0.85);
+        context.fill();
+        context.strokeStyle = "rgba(255,255,255,0.5)";
+        context.lineWidth = 1.5 * viewport.scale;
+        context.stroke();
+        
+        // Army count
+        context.fillStyle = "#ffffff";
+        context.font = `bold ${10 * viewport.scale}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.shadowColor = "rgba(0,0,0,0.8)";
+        context.shadowBlur = 3;
+        context.fillText(String(army.count), anchor.x, anchor.y + size * 0.1);
+        
+        context.restore();
+      });
+    }
+
+    // ---- Draw resource flow animations ----
+    const resourceFlows = [];
+    
+    function addResourceFlow(fromAgent, toAgent, resource, amount, timestamp) {
+      resourceFlows.push({
+        fromAgent,
+        toAgent, 
+        resource,
+        amount,
+        startTime: timestamp || Date.now(),
+        duration: 2000,
+        x: 0, y: 0,
+        targetX: 0, targetY: 0,
+        progress: 0,
+      });
+    }
+    
+    function drawResourceFlows(context, viewport, now) {
+      // Clean up old flows
+      const nowMs = Date.now();
+      while (resourceFlows.length > 20) resourceFlows.shift();
+      
+      resourceFlows.forEach((flow) => {
+        const elapsed = nowMs - flow.startTime;
+        flow.progress = Math.min(elapsed / flow.duration, 1);
+        
+        if (flow.progress <= 0 || flow.progress >= 1) return;
+        
+        const fromAgent = state.agents[flow.fromAgent];
+        const toAgent = state.agents[flow.toAgent];
+        if (!fromAgent || !toAgent) return;
+        
+        // Find structure positions
+        const fromStruct = (fromAgent.structureLocations || [])[0];
+        const toStruct = (toAgent.structureLocations || [])[0];
+        if (!fromStruct || !toStruct) return;
+        
+        const fromRegion = getRegion(fromStruct.regionId) || getRegionFromHex(fromStruct.hexes?.[0]);
+        const toRegion = getRegion(toStruct.regionId) || getRegionFromHex(toStruct.hexes?.[0]);
+        if (!fromRegion || !toRegion) return;
+        
+        const fromPos = worldPointToCanvas(fromRegion.anchor, viewport);
+        const toPos = worldPointToCanvas(toRegion.anchor, viewport);
+        
+        // Bezier curve for smooth flow
+        const midX = (fromPos.x + toPos.x) / 2;
+        const midY = (fromPos.y + toPos.y) / 2 - 40 * viewport.scale;
+        
+        const t = flow.progress;
+        const curveT = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        const x = Math.pow(1 - curveT, 2) * fromPos.x + 2 * (1 - curveT) * curveT * midX + curveT * curveT * toPos.x;
+        const y = Math.pow(1 - curveT, 2) * fromPos.y + 2 * (1 - curveT) * curveT * midY + curveT * curveT * toPos.y;
+        
+        // Resource icon
+        const size = 12 * viewport.scale;
+        const alpha = Math.sin(flow.progress * Math.PI);
+        
+        context.save();
+        context.globalAlpha = alpha;
+        
+        // Glow
+        context.shadowColor = RESOURCE_PALETTE[flow.resource] || "#ddb469";
+        context.shadowBlur = 10 * viewport.scale;
+        
+        // Circle background
+        context.beginPath();
+        context.arc(x, y, size, 0, Math.PI * 2);
+        context.fillStyle = RESOURCE_PALETTE[flow.resource] || "#ddb469";
+        context.fill();
+        
+        // Resource letter
+        context.fillStyle = "#000000";
+        context.font = `bold ${8 * viewport.scale}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(flow.resource.charAt(0).toUpperCase(), x, y);
+        
+        context.restore();
+      });
+    }
+
     function drawWorldEcosystems(context, viewport, now) {
       // Ecosystem health is shown in the sidebar panel — no on-map badges needed.
     }
@@ -3025,11 +3239,19 @@
           context.lineWidth = 1.6;
 
           context.beginPath();
-          if (location.type === "settlement") {
+          if (location.type === "village" || location.type === "settlement") {
+            // Triangle for villages
             context.moveTo(x, y - radius * 1.05);
             context.lineTo(x - radius, y + radius * 0.7);
             context.lineTo(x + radius, y + radius * 0.7);
+          } else if (location.type === "township") {
+            // Diamond for townships
+            context.moveTo(x, y - radius * 1.1);
+            context.lineTo(x + radius * 0.9, y);
+            context.lineTo(x, y + radius * 1.1);
+            context.lineTo(x - radius * 0.9, y);
           } else if (location.type === "city") {
+            // Hexagon for cities
             for (let side = 0; side < 6; side++) {
               const angle = (Math.PI * 2 / 6) * side - Math.PI / 2;
               const px = x + radius * 1.1 * Math.cos(angle);
@@ -3676,10 +3898,15 @@
           context.lineWidth = 1.6;
 
           context.beginPath();
-          if (location.type === "settlement") {
+          if (location.type === "village" || location.type === "settlement") {
             context.moveTo(x, y - radius * 1.05);
             context.lineTo(x - radius, y + radius * 0.7);
             context.lineTo(x + radius, y + radius * 0.7);
+          } else if (location.type === "township") {
+            context.moveTo(x, y - radius * 1.1);
+            context.lineTo(x + radius * 0.9, y);
+            context.lineTo(x, y + radius * 1.1);
+            context.lineTo(x - radius * 0.9, y);
           } else if (location.type === "city") {
             for (let side = 0; side < 6; side++) {
               const angle = (Math.PI * 2 / 6) * side - Math.PI / 2;
