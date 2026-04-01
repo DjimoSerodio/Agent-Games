@@ -177,6 +177,8 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       commonsHealthHistory: [initialCommonsHealth],
       currentCommonsHealth: initialCommonsHealth,
       actualMaxRounds,
+      allianceCooperationRounds: new Map(),
+      allianceVP: new Map(),
     };
   }
 
@@ -305,6 +307,18 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       nextProduction.push(this.state.productionWheel[pos]);
     }
 
+    // Alliance info
+    const myAllianceVP = this.state.allianceVP.get(agentId) || 0;
+    const allianceCoop = this.state.allianceCooperationRounds.get(agentId);
+    const alliancePartners: Array<{ agentId: AgentId; roundsOfCooperation: number }> = [];
+    if (allianceCoop) {
+      for (const [partnerId, rounds] of allianceCoop) {
+        if (rounds > 0) {
+          alliancePartners.push({ agentId: partnerId, roundsOfCooperation: rounds });
+        }
+      }
+    }
+
     return {
       gameId: this.state.gameId,
       round: this.state.round,
@@ -342,6 +356,10 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       tournamentDay: 1,
       tournamentPrizePool: this.state.prizePool.toString(),
       cumulativeScores: { ...this.state.scores },
+      allianceInfo: {
+        myAllianceVP,
+        alliancePartners,
+      },
     };
   }
 
@@ -594,13 +612,16 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
 
     this.resolveCommonsCycle(trustUpdates);
     this.resolveCommitmentLedger(trustUpdates, resolvedTrades, sabotageEvents, crisisContributors);
+    this.resolveAllianceVP(resolvedTrades, sabotageEvents, trustUpdates);
     this.refreshCommonsHealth();
 
-    // Update scores
+    // Update scores (including Alliance VP)
     for (const [agentId, delta] of Object.entries(scoreChanges)) {
       const ps = this.state.playerStates.get(agentId);
       if (ps) {
         ps.vp += delta;
+        // Add Alliance VP (hidden but contributes to score)
+        ps.vp += this.getAllianceVP(agentId);
         this.state.scores[agentId] = ps.vp;
       }
     }
@@ -635,7 +656,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
   }
 
   protected checkGameEnd(): boolean {
-    // Hidden round limit
+    // Hidden round limit - agents don't know when game ends (prevents timing betrayal)
     if (this.state.round >= this.state.actualMaxRounds) {
       return true;
     }
@@ -645,6 +666,10 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       if (ps.vp >= 15) return true;
     }
 
+    // Check if all players have passed consecutively (stall detection)
+    const allPassed = Array.from(this.state.playerStates.values()).every(ps => (ps as any)._lastAction === 'pass');
+    if (allPassed && this.state.round > 5) return true;
+
     return false;
   }
 
@@ -653,6 +678,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
     const scores: Record<AgentId, number> = {};
 
     for (const [agentId, ps] of this.state.playerStates) {
+      // Final score includes base VP + Alliance VP (already added during round resolution)
       scores[agentId] = ps.vp;
     }
 
@@ -1745,6 +1771,284 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
     }, { agents: "all", spectators: true });
   }
 
+  /**
+   * Get a full state snapshot for browser refresh recovery.
+   * This allows the frontend to reconstruct the game state after a refresh.
+   */
+  public getStateSnapshot(): {
+    gameId: string;
+    round: number;
+    phase: string;
+    isFinished: boolean;
+    winner: AgentId | null;
+    hexGrid: Array<{
+      q: number;
+      r: number;
+      terrain: string;
+      productionNumber: number;
+      revealed: boolean;
+      regionId?: string;
+      regionName?: string;
+      biome?: string;
+      primaryResource?: string;
+      center?: { x: number; y: number };
+      polygon?: Array<{ x: number; y: number }>;
+      ecosystemIds?: string[];
+    }>;
+    agentStates: Record<string, {
+      resources: ResourceInventory;
+      vp: number;
+      influence: number;
+      longestRoad: number;
+      structures: {
+        villages: number;
+        townships: number;
+        cities: number;
+        beacons: number;
+        tradePosts: number;
+        roads: number;
+      };
+      structureLocations: Array<{
+        type: string;
+        hexes: Array<{ q: number; r: number }>;
+        regionId?: string;
+        regionIds?: string[];
+      }>;
+      armies: Array<{ id: string; owner: AgentId; position: HexCoord; count: number }>;
+    }>;
+    agentPositions: Record<string, { q: number; r: number }>;
+    agentRegions: Record<string, string>;
+    productionWheel: number[];
+    wheelPosition: number;
+    activeCrisis: CrisisEvent | null;
+    ecosystems: Array<{
+      id: string;
+      name: string;
+      kind: string;
+      resource: string;
+      health: number;
+      maxHealth: number;
+      status: string;
+      regionIds: string[];
+      label: { x: number; y: number };
+      lastPressure: number;
+      lastYield: number;
+      lastDelta: number;
+    }>;
+    prizePool: string;
+    payablePrizePool: string;
+    slashedPrizePool: string;
+    carryoverPrizePool: string;
+    commonsHealth: CommonsHealthSnapshot;
+    commitments: Array<{
+      id: string;
+      type: string;
+      promisor: AgentId;
+      counterparties: AgentId[];
+      resolutionStatus: string;
+      summary: string;
+      dueByRound: number | null;
+      payoutShareBps: number | null;
+    }>;
+    attestations: Array<{
+      id: string;
+      commitmentId: string;
+      actor: AgentId;
+      phase: string;
+      verdict: string;
+      weight: number;
+    }>;
+    behaviorTags: Array<{
+      id: string;
+      round: number;
+      actor: AgentId;
+      kind: string;
+      severity: string;
+      description: string;
+    }>;
+    bonusHolders: {
+      longestRoad: AgentId | null;
+      mostInfluence: AgentId | null;
+    };
+    trustMatrix: { agents: AgentId[]; matrix: number[][] };
+  } {
+    const hexes: Array<{
+      q: number;
+      r: number;
+      terrain: string;
+      productionNumber: number;
+      revealed: boolean;
+      regionId?: string;
+      regionName?: string;
+      biome?: string;
+      primaryResource?: string;
+      center?: { x: number; y: number };
+      polygon?: Array<{ x: number; y: number }>;
+      ecosystemIds?: string[];
+    }> = [];
+
+    for (const [_, tile] of this.state.hexGrid) {
+      hexes.push({
+        q: tile.coord.q,
+        r: tile.coord.r,
+        terrain: tile.terrain,
+        productionNumber: tile.productionNumber,
+        revealed: tile.revealed,
+        regionId: tile.regionId,
+        regionName: tile.regionName,
+        biome: tile.biome,
+        primaryResource: tile.primaryResource,
+        center: tile.center,
+        polygon: tile.polygon,
+        ecosystemIds: tile.ecosystemIds,
+      });
+    }
+
+    const agentStates: Record<string, {
+      resources: ResourceInventory;
+      vp: number;
+      influence: number;
+      longestRoad: number;
+      structures: {
+        villages: number;
+        townships: number;
+        cities: number;
+        beacons: number;
+        tradePosts: number;
+        roads: number;
+      };
+      structureLocations: Array<{
+        type: string;
+        hexes: Array<{ q: number; r: number }>;
+        regionId?: string;
+        regionIds?: string[];
+      }>;
+      armies: Array<{ id: string; owner: AgentId; position: HexCoord; count: number }>;
+    }> = {};
+
+    const agentPositions: Record<string, { q: number; r: number }> = {};
+    const agentRegions: Record<string, string> = {};
+
+    for (const [agentId, ps] of this.state.playerStates) {
+      const structureLocations: Array<{
+        type: string;
+        hexes: Array<{ q: number; r: number }>;
+        regionId?: string;
+        regionIds?: string[];
+      }> = [];
+
+      for (const v of ps.structures.villages) {
+        structureLocations.push({ type: "village", hexes: v.hexes, regionId: v.regionId });
+      }
+      for (const t of ps.structures.townships) {
+        structureLocations.push({ type: "township", hexes: t.hexes, regionId: t.regionId });
+      }
+      for (const c of ps.structures.cities) {
+        structureLocations.push({ type: "city", hexes: c.hexes, regionId: c.regionId });
+      }
+      for (const b of ps.structures.beacons) {
+        structureLocations.push({ type: "beacon", hexes: b.hexes, regionId: b.regionId });
+      }
+      for (const tp of ps.structures.tradePosts) {
+        structureLocations.push({ type: "trade_post", hexes: tp.hexes, regionId: tp.regionId });
+      }
+      for (const r of ps.structures.roads) {
+        structureLocations.push({ type: "road", hexes: r.hexes, regionIds: r.regionIds ? [...r.regionIds] : undefined });
+      }
+
+      agentStates[agentId] = {
+        resources: { ...ps.resources },
+        vp: ps.vp,
+        influence: ps.influence,
+        longestRoad: ps.longestRoad,
+        structures: {
+          villages: ps.structures.villages.length,
+          townships: ps.structures.townships.length,
+          cities: ps.structures.cities.length,
+          beacons: ps.structures.beacons.length,
+          tradePosts: ps.structures.tradePosts.length,
+          roads: ps.structures.roads.length,
+        },
+        structureLocations,
+        armies: ps.armies.map(a => ({ ...a })),
+      };
+
+      if (ps.structures.villages.length > 0) {
+        const startHex = ps.structures.villages[0].hexes[0];
+        agentPositions[agentId] = { q: startHex.q, r: startHex.r };
+        const startRegion = getRegionByCoord(this.state.worldMap, startHex);
+        if (startRegion) {
+          agentRegions[agentId] = startRegion.id;
+        }
+      }
+    }
+
+    return {
+      gameId: this.state.gameId,
+      round: this.state.round,
+      phase: this.state.phase,
+      isFinished: this.state.isFinished,
+      winner: this.state.winner,
+      hexGrid: hexes,
+      agentStates,
+      agentPositions,
+      agentRegions,
+      productionWheel: [...this.state.productionWheel],
+      wheelPosition: this.state.wheelPosition,
+      activeCrisis: this.state.activeCrisis,
+      ecosystems: this.state.ecosystems.map((ecosystem) => ({
+        id: ecosystem.id,
+        name: ecosystem.name,
+        kind: ecosystem.kind,
+        resource: ecosystem.resource,
+        health: ecosystem.health,
+        maxHealth: ecosystem.maxHealth,
+        status: ecosystem.status,
+        regionIds: ecosystem.regionIds,
+        label: ecosystem.label,
+        lastPressure: ecosystem.lastPressure,
+        lastYield: ecosystem.lastYield,
+        lastDelta: ecosystem.lastDelta,
+      })),
+      prizePool: this.state.prizePool.toString(),
+      payablePrizePool: this.state.payablePrizePool.toString(),
+      slashedPrizePool: this.state.slashedPrizePool.toString(),
+      carryoverPrizePool: this.state.carryoverPrizePool.toString(),
+      commonsHealth: this.state.currentCommonsHealth,
+      commitments: this.state.commitments.map((commitment) => ({
+        id: commitment.id,
+        type: commitment.type,
+        promisor: commitment.promisor,
+        counterparties: commitment.counterparties,
+        resolutionStatus: commitment.resolutionStatus,
+        summary: commitment.summary,
+        dueByRound: commitment.dueByRound,
+        payoutShareBps: commitment.payoutShareBps,
+      })),
+      attestations: this.state.attestations.map((attestation) => ({
+        id: attestation.id,
+        commitmentId: attestation.commitmentId,
+        actor: attestation.actor,
+        phase: attestation.phase,
+        verdict: attestation.verdict,
+        weight: attestation.weight,
+      })),
+      behaviorTags: this.state.behaviorTags.map((tag) => ({
+        id: tag.id,
+        round: tag.round,
+        actor: tag.actor,
+        kind: tag.kind,
+        severity: tag.severity,
+        description: tag.description,
+      })),
+      bonusHolders: {
+        longestRoad: this.state.longestRoadHolder,
+        mostInfluence: this.state.mostInfluenceHolder,
+      },
+      trustMatrix: this.trustGraph.getTrustMatrix(),
+    };
+  }
+
   private getControlledRegionIds(agentId: AgentId): string[] {
     const ps = this.state.playerStates.get(agentId);
     if (!ps) return [];
@@ -1896,6 +2200,98 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
         }
       }
     }
+  }
+
+  /**
+   * Alliance VP System:
+   * - Sustained cooperation (successful trades with same partner) earns Alliance VP
+   * - Breaking an alliance costs Alliance VP
+   * - Alliance VP is hidden but contributes to final score
+   */
+  private resolveAllianceVP(
+    resolvedTrades: Array<{ from: AgentId; to: AgentId; round: number }>,
+    sabotageEvents: Array<{ from: AgentId; to: AgentId; round: number }>,
+    trustUpdates: TrustUpdate[],
+  ): void {
+    const SUSTAINED_COOPERATION_THRESHOLD = 3; // Rounds of cooperation needed for Alliance VP
+    const ALLIANCE_VP_PER_RENEWAL = 1; // VP awarded per sustained cooperation renewal
+    const ALLIANCE_BREAK_PENALTY = 2; // VP lost when breaking an alliance
+
+    // Process this round's trades to track cooperation
+    for (const trade of resolvedTrades) {
+      const fromAgent = trade.from;
+      const toAgent = trade.to;
+
+      // Initialize maps if needed
+      if (!this.state.allianceCooperationRounds.has(fromAgent)) {
+        this.state.allianceCooperationRounds.set(fromAgent, new Map());
+      }
+      if (!this.state.allianceCooperationRounds.has(toAgent)) {
+        this.state.allianceCooperationRounds.set(toAgent, new Map());
+      }
+
+      // Increment cooperation rounds for both parties
+      const fromCoop = this.state.allianceCooperationRounds.get(fromAgent)!;
+      const toCoop = this.state.allianceCooperationRounds.get(toAgent)!;
+
+      const prevFromCoop = fromCoop.get(toAgent) || 0;
+      const prevToCoop = toCoop.get(fromAgent) || 0;
+
+      fromCoop.set(toAgent, prevFromCoop + 1);
+      toCoop.set(fromAgent, prevToCoop + 1);
+
+      // Check if sustained cooperation threshold reached - award Alliance VP
+      if (prevFromCoop + 1 >= SUSTAINED_COOPERATION_THRESHOLD && prevFromCoop < SUSTAINED_COOPERATION_THRESHOLD) {
+        const fromVP = this.state.allianceVP.get(fromAgent) || 0;
+        const toVP = this.state.allianceVP.get(toAgent) || 0;
+        this.state.allianceVP.set(fromAgent, fromVP + ALLIANCE_VP_PER_RENEWAL);
+        this.state.allianceVP.set(toAgent, toVP + ALLIANCE_VP_PER_RENEWAL);
+
+        // Emit event for alliance formation
+        this.emitEvent("alliance.formed", {
+          agents: [fromAgent, toAgent],
+          roundsOfCooperation: prevFromCoop + 1,
+          allianceVP: ALLIANCE_VP_PER_RENEWAL,
+        }, { agents: "all", spectators: true });
+      }
+    }
+
+    // Process sabotage events - breaking alliance costs VP
+    for (const sabotage of sabotageEvents) {
+      const saboteur = sabotage.from;
+      const victim = sabotage.to;
+
+      // Check if there was an alliance between these agents
+      const saboteurCoop = this.state.allianceCooperationRounds.get(saboteur);
+      const victimCoop = this.state.allianceCooperationRounds.get(victim);
+      const saboteurPrevCoop = saboteurCoop?.get(victim) || 0;
+      const victimPrevCoop = victimCoop?.get(saboteur) || 0;
+
+      if (saboteurPrevCoop >= SUSTAINED_COOPERATION_THRESHOLD || victimPrevCoop >= SUSTAINED_COOPERATION_THRESHOLD) {
+        // Alliance was active - penalize the saboteur
+        const saboteurVP = this.state.allianceVP.get(saboteur) || 0;
+        this.state.allianceVP.set(saboteur, Math.max(0, saboteurVP - ALLIANCE_BREAK_PENALTY));
+
+        // Reset cooperation tracking
+        saboteurCoop?.set(victim, 0);
+        victimCoop?.set(saboteur, 0);
+
+        // Emit event for alliance broken
+        this.emitEvent("alliance.broken", {
+          saboteur,
+          victim,
+          penalty: ALLIANCE_BREAK_PENALTY,
+          trustUpdates: trustUpdates.length,
+        }, { agents: "all", spectators: true });
+      }
+    }
+  }
+
+  /**
+   * Get Alliance VP for an agent (for final score computation)
+   */
+  private getAllianceVP(agentId: AgentId): number {
+    return this.state.allianceVP.get(agentId) || 0;
   }
 
   // ============================================================

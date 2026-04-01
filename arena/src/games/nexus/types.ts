@@ -647,6 +647,10 @@ export interface ComedyGameState extends GameState {
 
   // Hidden state (not shown to agents)
   actualMaxRounds: number; // Hidden end condition
+
+  // Alliance VP tracking
+  allianceCooperationRounds: Map<AgentId, Map<AgentId, number>>; // agent -> partner -> rounds of sustained cooperation
+  allianceVP: Map<AgentId, number>; // agent -> alliance VP earned
 }
 
 // ============================================================
@@ -705,6 +709,12 @@ export interface ComedyAgentView {
   // Tournament context (what agents can see)
   tournamentDay: number; // Visible: "Day 1", "Day 2" - but actual game count is hidden
   tournamentPrizePool: string; // Wei as string - total accumulated
+
+  // Alliance VP (hidden from agents but shown to spectators)
+  allianceInfo: {
+    myAllianceVP: number;
+    alliancePartners: Array<{ agentId: AgentId; roundsOfCooperation: number }>;
+  };
   cumulativeScores: Record<AgentId, number>; // Cumulative scores across session
 }
 

@@ -204,7 +204,9 @@ export type EventType =
   | "commitment.attested"
   | "commitment.resolved"
   | "behavior.tagged"
-  | "prize.slashed";
+  | "prize.slashed"
+  | "alliance.formed"
+  | "alliance.broken";
 
 export interface ArenaEvent {
   type: EventType;

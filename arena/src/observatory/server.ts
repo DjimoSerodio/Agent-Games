@@ -300,6 +300,34 @@ export class ObservatoryServer {
       res.json(this.trustGraph.getTrustMatrix());
     });
 
+    // Game state snapshot (for browser refresh recovery)
+    this.app.get("/api/games/:gameId/snapshot", (req, res) => {
+      const events = this.eventBus.getHistory({
+        gameId: req.params.gameId,
+        spectator: true,
+        types: ["game.state_update"],
+      });
+      
+      if (events.length === 0) {
+        res.status(404).json({ error: "Game not found or no state updates yet" });
+        return;
+      }
+
+      const latestState = events[events.length - 1].data as any;
+      const agentInfoEvents = this.eventBus.getHistory({
+        gameId: req.params.gameId,
+        spectator: true,
+        types: ["game.agent_info"],
+      });
+      const agentInfo = agentInfoEvents.length > 0 ? agentInfoEvents[0].data : null;
+
+      res.json({
+        snapshot: latestState,
+        agentInfo,
+        timestamp: Date.now(),
+      });
+    });
+
     this.app.get("/api/trust/snapshots", (_, res) => {
       res.json(this.trustGraph.getAllSnapshots());
     });

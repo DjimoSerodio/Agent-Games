@@ -400,4 +400,63 @@ export class TrustGraph {
 
     this.globalScores = new Map(Object.entries(data.globalScores));
   }
+
+  /**
+   * Merge another trust graph into this one (for cross-game reputation)
+   */
+  merge(other: TrustGraph): void {
+    const otherData = other.export();
+    for (const agentId of otherData.agents) {
+      this.addAgent(agentId);
+    }
+    for (const edge of otherData.edges) {
+      const existingEdge = this.edges.get(edge.from)?.get(edge.to);
+      if (existingEdge) {
+        existingEdge.interactions += edge.interactions;
+        existingEdge.cooperations += edge.cooperations;
+        existingEdge.defections += edge.defections;
+        existingEdge.weight = Math.max(existingEdge.weight, edge.weight);
+        existingEdge.lastInteraction = Math.max(existingEdge.lastInteraction, edge.lastInteraction);
+        // Merge game contexts
+        for (const gameId of edge.gameContexts) {
+          if (!existingEdge.gameContexts.includes(gameId)) {
+            existingEdge.gameContexts.push(gameId);
+          }
+        }
+      } else {
+        this.edges.get(edge.from)?.set(edge.to, { ...edge });
+      }
+    }
+    this.recompute();
+  }
+
+  /**
+   * Get cross-game reputation score for an agent
+   * This combines global trust with number of games played
+   */
+  getCrossGameReputation(agentId: AgentId): { trustScore: number; gamesPlayed: number; rank: number } {
+    const trustScore = this.getGlobalScore(agentId);
+    const gamesPlayed = this.getGamesPlayed(agentId);
+    const snapshot = this.getSnapshot(agentId);
+    return {
+      trustScore,
+      gamesPlayed,
+      rank: snapshot.rank,
+    };
+  }
+
+  /**
+   * Get reputation leaderboard across all agents
+   */
+  getReputationLeaderboard(): Array<{ agentId: AgentId; trustScore: number; gamesPlayed: number; rank: number }> {
+    const snapshots = this.getAllSnapshots();
+    return snapshots
+      .map(snap => ({
+        agentId: snap.agentId,
+        trustScore: snap.globalScore,
+        gamesPlayed: this.getGamesPlayed(snap.agentId),
+        rank: snap.rank,
+      }))
+      .sort((a, b) => b.trustScore - a.trustScore);
+  }
 }

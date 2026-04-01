@@ -46,6 +46,14 @@ interface AgentMemory {
   /** Trades others have OFFERED to me (parsed from messages) */
   incomingOffers: Map<AgentId, TradeOffer>;
   roundCount: number;
+  /** Last round we reciprocated a trade */
+  lastReciprocatedRound: Record<AgentId, number>;
+  /** Ecosystem extraction history for sustainable use */
+  extractionHistory: Map<string, { level: string; round: number }>;
+  /** Partner for alliance VP tracking */
+  alliancePartner: AgentId | null;
+  /** Sustained cooperation rounds for alliance VP */
+  allianceCooperationRounds: number;
 }
 
 export class SimpleAgent implements GameAgent {
@@ -72,6 +80,10 @@ export class SimpleAgent implements GameAgent {
       myOffers: new Map(),
       incomingOffers: new Map(),
       roundCount: 0,
+      lastReciprocatedRound: {},
+      extractionHistory: new Map(),
+      alliancePartner: null,
+      allianceCooperationRounds: 0,
     };
   }
 
@@ -182,6 +194,22 @@ export class SimpleAgent implements GameAgent {
           this.memory.lastBehavior[partnerId] = "defected";
           this.memory.enemies.add(partnerId);
           this.memory.allies.delete(partnerId);
+          this.memory.alliancePartner = null;
+          this.memory.allianceCooperationRounds = 0;
+        }
+      }
+      // Track successful trades for alliance building
+      if (outcome.action.type === "trade_player" && outcome.success) {
+        const partnerId = (outcome.action as ComedyAction).params.partnerId as AgentId;
+        if (partnerId) {
+          this.memory.lastBehavior[partnerId] = "cooperated";
+          // Increment alliance cooperation rounds if same partner
+          if (this.memory.alliancePartner === partnerId) {
+            this.memory.allianceCooperationRounds++;
+          } else {
+            this.memory.alliancePartner = partnerId;
+            this.memory.allianceCooperationRounds = 1;
+          }
         }
       }
     }
@@ -189,9 +217,13 @@ export class SimpleAgent implements GameAgent {
     for (const update of results.trustUpdates) {
       if (update.to === this.id && update.delta > 0) {
         this.memory.lastBehavior[update.from] = "cooperated";
+        this.memory.allies.add(update.from);
+        this.memory.enemies.delete(update.from);
       }
       if (update.to === this.id && update.delta < 0) {
         this.memory.lastBehavior[update.from] = "defected";
+        this.memory.enemies.add(update.from);
+        this.memory.allies.delete(update.from);
       }
     }
   }
@@ -507,33 +539,43 @@ export class SimpleAgent implements GameAgent {
 
   private decideBuildAction(view: ComedyAgentView, round: number): ComedyAction | null {
     const r = view.myResources;
+    const totalStructures = view.myStructures.villages.length + 
+                          view.myStructures.townships.length + 
+                          view.myStructures.cities.length;
+
+    // Build army if we can afford it (for defense/conquest)
+    if (r.ore >= 1 && r.energy >= 1 && view.myStructures.villages.length >= 1) {
+      return { type: "build_army", agentId: this.id, params: {}, round, timestamp: Date.now() };
+    }
 
     // Upgrade to city if we have townships and can afford it
-    if (r.grain >= 2 && r.ore >= 2 && r.water >= 1 && view.myStructures.townships.length >= 2) {
+    if (r.grain >= 2 && r.ore >= 2 && r.water >= 1 && view.myStructures.townships.length >= 1) {
       return { type: "upgrade_city", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
-    // Upgrade to township if we have 3+ villages and can afford it
-    if (r.grain >= 2 && r.timber >= 1 && r.ore >= 1 && r.water >= 1 && view.myStructures.villages.length >= 3) {
+    // Upgrade to township if we have villages and can afford it
+    if (r.grain >= 2 && r.timber >= 1 && r.ore >= 1 && r.water >= 1 && view.myStructures.villages.length >= 1) {
       return { type: "upgrade_township", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
-    // Build village
-    if (r.grain >= 1 && r.timber >= 1 && r.ore >= 1 && r.water >= 1) {
+    // Build village if we need more structures for income
+    if (r.grain >= 1 && r.timber >= 1 && r.ore >= 1 && r.water >= 1 && totalStructures < 5) {
       return { type: "build_village", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
-    // Build beacon (if diplomat or have excess energy)
-    if ((this.strategy === "diplomat" || this.strategy === "cooperator") && r.ore >= 1 && r.energy >= 1 && r.water >= 1) {
+    // Build beacon (if diplomat or cooperator and have resources)
+    if ((this.strategy === "diplomat" || this.strategy === "cooperator") && 
+        r.ore >= 1 && r.energy >= 1 && r.water >= 1 && view.myStructures.beacons.length < 2) {
       return { type: "build_beacon", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
-    // Build trade post (if builder)
-    if (this.strategy === "builder" && r.timber >= 1 && r.fish >= 1 && r.water >= 1) {
+    // Build trade post (if builder and need trade infrastructure)
+    if (this.strategy === "builder" && 
+        r.timber >= 1 && r.fish >= 1 && r.water >= 1 && view.myStructures.tradePosts.length < 2) {
       return { type: "build_trade_post", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
-    // Build road
+    // Build road to expand territory
     if (r.grain >= 1 && r.timber >= 1) {
       return { type: "build_road", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
@@ -544,6 +586,7 @@ export class SimpleAgent implements GameAgent {
   private decideSecondaryAction(view: ComedyAgentView, legalActions: Action[], round: number): ComedyAction | null {
     const accessibleEcosystem = this.getAccessibleEcosystem(view);
 
+    // Early game: explore more
     if (round <= 3) {
       return { type: "explore", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
@@ -553,31 +596,47 @@ export class SimpleAgent implements GameAgent {
       return { type: "sabotage", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
+    // Intentional extraction/restoration based on ecosystem health
     if (accessibleEcosystem) {
-      if (
-        this.strategy !== "defector" &&
-        accessibleEcosystem.health <= Math.max(accessibleEcosystem.collapseThreshold + 8, 34) &&
-        this.canRestore(view)
-      ) {
+      const ecosystemId = accessibleEcosystem.id;
+      const lastExtraction = this.memory.extractionHistory.get(ecosystemId);
+      const extractionCooldown = 3; // Only extract same ecosystem every 3 rounds
+      
+      // Restore if ecosystem is unhealthy (below flourish threshold)
+      if (accessibleEcosystem.health <= accessibleEcosystem.flourishThreshold * 0.8 &&
+          this.canRestore(view) &&
+          this.strategy !== "defector") {
+        this.memory.extractionHistory.delete(ecosystemId); // Reset extraction history
         return {
           type: "restore_ecosystem",
           agentId: this.id,
-          params: { ecosystemId: accessibleEcosystem.id },
+          params: { ecosystemId },
           round,
           timestamp: Date.now(),
         };
       }
 
-      return {
-        type: "extract_commons",
-        agentId: this.id,
-        params: {
-          ecosystemId: accessibleEcosystem.id,
-          extractionLevel: this.strategy === "defector" ? "high" : this.strategy === "builder" ? "medium" : "low",
-        },
-        round,
-        timestamp: Date.now(),
-      };
+      // Extract only if we haven't extracted recently or ecosystem is healthy
+      const canExtract = !lastExtraction || (round - lastExtraction.round >= extractionCooldown);
+      const isHealthy = accessibleEcosystem.status === "flourishing" || 
+                        accessibleEcosystem.health > accessibleEcosystem.flourishThreshold;
+      
+      if (canExtract || isHealthy) {
+        // Determine extraction level based on strategy and ecosystem health
+        let extractionLevel: "low" | "medium" | "high" = "low";
+        if (isHealthy && this.strategy !== "cooperator" && this.strategy !== "diplomat") {
+          extractionLevel = this.strategy === "defector" ? "high" : "medium";
+        }
+        
+        this.memory.extractionHistory.set(ecosystemId, { level: extractionLevel, round });
+        return {
+          type: "extract_commons",
+          agentId: this.id,
+          params: { ecosystemId, extractionLevel },
+          round,
+          timestamp: Date.now(),
+        };
+      }
     }
 
     // Try a bank trade if we have excess of one resource
@@ -589,6 +648,31 @@ export class SimpleAgent implements GameAgent {
         params: { bankGiveType: surplus, bankReceiveType: need, bankGiveAmount: 4 },
         round, timestamp: Date.now(),
       };
+    }
+
+    // Reciprocate trades if someone offered to us recently
+    for (const [senderId, offer] of this.memory.incomingOffers) {
+      const lastReciprocated = this.memory.lastReciprocatedRound[senderId] || 0;
+      if (round - lastReciprocated >= 2) { // Reciprocate within 2 rounds
+        // Check if we can afford to reciprocate
+        let canAfford = true;
+        for (const [res, amt] of Object.entries(offer.give)) {
+          if ((view.myResources[res as ResourceType] || 0) < (amt as number)) {
+            canAfford = false;
+            break;
+          }
+        }
+        if (canAfford) {
+          this.memory.lastReciprocatedRound[senderId] = round;
+          return {
+            type: "trade_player",
+            agentId: this.id,
+            params: { partnerId: senderId, give: offer.give, receive: offer.receive },
+            round,
+            timestamp: Date.now(),
+          };
+        }
+      }
     }
 
     // Explore more

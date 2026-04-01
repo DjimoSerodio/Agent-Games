@@ -6,18 +6,22 @@
  * - Hidden tournament end (geometric continuation probability)
  * - Prize pool accumulation and distribution
  * - Trust scores persist across games
+ * - Cross-game reputation via TrustGraph integration
  */
 
 import { AgentId, GameId } from "../../core/types.js";
 import { TournamentState, TournamentConfig, DEFAULT_TOURNAMENT_CONFIG } from "./types.js";
+import { TrustGraph } from "../../trust/trust-graph.js";
 import { v4 as uuid } from "uuid";
 
 export class TournamentManager {
   private state: TournamentState;
   private config: TournamentConfig;
+  private trustGraph: TrustGraph;
 
-  constructor(config: Partial<TournamentConfig> = {}) {
+  constructor(config: Partial<TournamentConfig> = {}, trustGraph?: TrustGraph) {
     this.config = { ...DEFAULT_TOURNAMENT_CONFIG, ...config };
+    this.trustGraph = trustGraph || new TrustGraph();
     this.state = {
       sessionId: uuid(),
       gamesPlayed: 0,
@@ -47,6 +51,8 @@ export class TournamentManager {
       if (!(player in this.state.cumulativeScores)) {
         this.state.cumulativeScores[player] = 0;
       }
+      // Register player in trust graph
+      this.trustGraph.addAgent(player);
     }
   }
 
@@ -116,7 +122,23 @@ export class TournamentManager {
     return distribution;
   }
 
-  static create(): TournamentManager {
-    return new TournamentManager();
+  getTrustGraph(): TrustGraph {
+    return this.trustGraph;
+  }
+
+  getCrossGameReputation(agentId: AgentId): { trustScore: number; gamesPlayed: number; rank: number } {
+    return this.trustGraph.getCrossGameReputation(agentId);
+  }
+
+  getReputationLeaderboard(): Array<{ agentId: AgentId; trustScore: number; gamesPlayed: number; rank: number }> {
+    return this.trustGraph.getReputationLeaderboard();
+  }
+
+  getTrustMatrix(): { agents: AgentId[]; matrix: number[][] } {
+    return this.trustGraph.getTrustMatrix();
+  }
+
+  static create(trustGraph?: TrustGraph): TournamentManager {
+    return new TournamentManager({}, trustGraph);
   }
 }
