@@ -101,30 +101,25 @@ export function GameBoard() {
 
         ctx.save();
         drawHexPath(ctx, position.x, position.y + 5, inner);
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.36)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
         ctx.fill();
         ctx.restore();
 
         drawHexPath(ctx, position.x, position.y, inner);
-        const fill = ctx.createRadialGradient(position.x - inner * 0.16, position.y - inner * 0.32, inner * 0.1, position.x, position.y, inner * 1.12);
-        fill.addColorStop(0, lightenHex(terrain.fill, 28));
-        fill.addColorStop(0.42, terrain.fill);
+        const fill = ctx.createRadialGradient(position.x - inner * 0.18, position.y - inner * 0.35, inner * 0.05, position.x, position.y, inner * 1.15);
+        fill.addColorStop(0, lightenHex(terrain.fill, 32));
+        fill.addColorStop(0.38, terrain.fill);
         fill.addColorStop(1, terrain.dark);
         ctx.fillStyle = fill;
         ctx.fill();
 
-        drawHexPath(ctx, position.x, position.y, inner);
-        ctx.fillStyle = terrain.glow;
-        ctx.globalAlpha = producing ? 0.22 + 0.1 * pulse : hovered ? 0.15 : 0.08;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-
         ctx.save();
         drawHexPath(ctx, position.x, position.y, inner);
         ctx.clip();
-        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-        ctx.lineWidth = 0.8;
-        for (let offset = -inner; offset < inner; offset += size * 0.2) {
+        ctx.strokeStyle = terrain.highlight;
+        ctx.lineWidth = 1.2;
+        const spacing = size * 0.18;
+        for (let offset = -inner * 1.5; offset < inner * 1.5; offset += spacing) {
           ctx.beginPath();
           ctx.moveTo(position.x - inner + offset, position.y - inner);
           ctx.lineTo(position.x + inner + offset, position.y + inner);
@@ -132,47 +127,80 @@ export function GameBoard() {
         }
         ctx.restore();
 
+        ctx.save();
+        drawHexPath(ctx, position.x, position.y, inner);
+        ctx.clip();
+        ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+        ctx.lineWidth = 0.6;
+        const vSpacing = size * 0.22;
+        for (let offset = -inner * 1.5; offset < inner * 1.5; offset += vSpacing) {
+          ctx.beginPath();
+          ctx.moveTo(position.x - inner, position.y - inner + offset);
+          ctx.lineTo(position.x + inner, position.y - inner + offset);
+          ctx.stroke();
+        }
+        ctx.restore();
+
+        drawHexPath(ctx, position.x, position.y, inner);
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        const glowAlpha = producing ? 0.28 + 0.12 * pulse : hovered ? 0.18 : 0.06;
+        drawHexPath(ctx, position.x, position.y, inner);
+        ctx.fillStyle = terrain.glow;
+        ctx.globalAlpha = glowAlpha;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        ctx.save();
+        drawHexPath(ctx, position.x, position.y, inner + 3);
+        ctx.strokeStyle = lightenHex(terrain.fill, 50);
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+
         if (producing || hovered || selected) {
           ctx.save();
-          drawHexPath(ctx, position.x, position.y, inner + 4);
-          ctx.strokeStyle = selected ? addAlpha(terrain.fill, 0.88) : addAlpha(terrain.fill, 0.45 + pulse * 0.2);
-          ctx.lineWidth = selected ? 5 : 4;
+          drawHexPath(ctx, position.x, position.y, inner + 5);
+          ctx.strokeStyle = selected ? addAlpha(terrain.fill, 0.92) : addAlpha(terrain.fill, 0.50 + pulse * 0.18);
+          ctx.lineWidth = selected ? 5 : 4.5;
           ctx.shadowColor = terrain.fill;
-          ctx.shadowBlur = selected ? 30 : 26 * pulse;
+          ctx.shadowBlur = selected ? 32 : 28 * pulse;
           ctx.stroke();
           ctx.restore();
         }
 
         drawHexPath(ctx, position.x, position.y, inner);
-        ctx.strokeStyle = lightenHex(terrain.fill, 40);
-        ctx.lineWidth = hovered ? 3 : 2.2;
+        ctx.strokeStyle = lightenHex(terrain.fill, 45);
+        ctx.lineWidth = hovered ? 3 : 2.4;
         ctx.stroke();
 
-        ctx.fillStyle = 'rgba(247, 238, 220, 0.68)';
-        ctx.font = `700 ${size * 0.11}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+        ctx.fillStyle = 'rgba(252, 244, 225, 0.75)';
+        ctx.font = `700 ${size * 0.115}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(terrain.symbol, position.x, position.y - size * 0.18);
+        ctx.fillText(terrain.symbol, position.x, position.y - size * 0.17);
 
         ctx.save();
-        ctx.fillStyle = 'rgba(247, 238, 220, 0.62)';
-        ctx.shadowColor = 'rgba(0,0,0,0.7)';
-        ctx.shadowBlur = 7;
-        ctx.font = `600 ${size * 0.085}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
-        ctx.fillText((hex.regionName || terrain.label).toUpperCase(), position.x, position.y + size * 0.2);
+        ctx.fillStyle = 'rgba(247, 238, 220, 0.68)';
+        ctx.shadowColor = 'rgba(0,0,0,0.75)';
+        ctx.shadowBlur = 8;
+        ctx.font = `600 ${size * 0.088}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+        ctx.fillText((hex.regionName || terrain.label).toUpperCase(), position.x, position.y + size * 0.21);
         ctx.restore();
 
         if (Number(hex.productionNumber || 0) > 0 && hex.terrain !== 'wasteland') {
           const badgeY = position.y - inner * 0.52;
           ctx.beginPath();
-          ctx.arc(position.x, badgeY, size * 0.15, 0, Math.PI * 2);
-          ctx.fillStyle = producing ? 'rgba(247, 238, 220, 0.92)' : 'rgba(8, 11, 9, 0.78)';
+          ctx.arc(position.x, badgeY, size * 0.16, 0, Math.PI * 2);
+          ctx.fillStyle = producing ? 'rgba(252, 244, 225, 0.95)' : 'rgba(12, 15, 12, 0.82)';
           ctx.fill();
-          ctx.strokeStyle = producing ? addAlpha(terrain.fill, 0.68) : 'rgba(247, 238, 220, 0.14)';
-          ctx.lineWidth = 1.4;
+          ctx.strokeStyle = producing ? addAlpha(terrain.fill, 0.72) : 'rgba(252, 244, 225, 0.16)';
+          ctx.lineWidth = 1.5;
           ctx.stroke();
-          ctx.fillStyle = producing ? '#231d15' : 'rgba(247,238,220,0.72)';
-          ctx.font = `800 ${size * 0.15}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+          ctx.fillStyle = producing ? '#1a1510' : 'rgba(247,238,220,0.78)';
+          ctx.font = `800 ${size * 0.155}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
           ctx.fillText(String(hex.productionNumber), position.x, badgeY + 1);
         }
       }
