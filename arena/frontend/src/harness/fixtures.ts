@@ -1,4 +1,4 @@
-import type { GameState, ChatMessage, HexTile, AgentState } from '../store';
+import type { GameState, ChatMessage, HexTile, AgentState, AgentIdentity } from '../store';
 
 const AGENT_IDS = [
   'agent-0', 'agent-1', 'agent-2', 'agent-3', 'agent-4', 'agent-5',
@@ -167,6 +167,43 @@ export function createMaxPlayerFixture(): GameState {
     });
   }
   (state as unknown as { messages: ChatMessage[] }).messages = messages;
+
+  return state;
+}
+
+export function createReadinessFixture(): GameState {
+  const state = createMaxPlayerFixture();
+  state.gameId = 'fixture-readiness';
+
+  const identities: Record<string, AgentIdentity> = {};
+  for (let i = 0; i < 6; i++) {
+    const id = AGENT_IDS[i];
+    identities[id] = {
+      agentId: id,
+      walletAddress: `0x${String(i).repeat(40)}`,
+      name: `Agent ${id}`,
+      mcpEndpoint: i % 2 === 0 ? `http://mcp-${i}.local:3100` : undefined,
+      capabilities: i % 3 === 0 ? ['trust-modeling', 'commitment-tracking'] : ['commitment-tracking'],
+      registeredAt: 1700000000 + i * 1000,
+      chainId: 8004,
+    };
+  }
+  state.agentIdentities = identities;
+
+  state.attestationReadiness = [
+    { uid: 'att-read-0', schema: 'agent-performance-v1', gameId: 'fixture-readiness', agentId: 'agent-0', placement: 1, score: 95, trustDelta: 0.1, cooperationRate: 0.85, betrayalCount: 2, ecosystemImpact: 0.05, attestedAt: 1700000100 },
+    { uid: 'att-read-1', schema: 'agent-performance-v1', gameId: 'fixture-readiness', agentId: 'agent-1', placement: 2, score: 88, trustDelta: 0.05, cooperationRate: 0.78, betrayalCount: 4, ecosystemImpact: -0.02, attestedAt: 1700000200 },
+    { uid: 'att-read-2', schema: 'agent-performance-v1', gameId: 'fixture-readiness', agentId: 'agent-2', placement: 3, score: 82, trustDelta: -0.02, cooperationRate: 0.65, betrayalCount: 7, ecosystemImpact: -0.08, attestedAt: 1700000300 },
+  ];
+
+  state.participationReadiness = [
+    { agentId: 'agent-0', status: 'active', mcpConnected: true, lastSeenAt: 1700000100, gamesPlayed: 12, trustScore: 0.92 },
+    { agentId: 'agent-1', status: 'active', mcpConnected: true, lastSeenAt: 1700000200, gamesPlayed: 8, trustScore: 0.85 },
+    { agentId: 'agent-2', status: 'registered', mcpConnected: true, lastSeenAt: 1700000300, gamesPlayed: 3, trustScore: 0.71 },
+    { agentId: 'agent-3', status: 'inactive', mcpConnected: false, lastSeenAt: 1699999000, gamesPlayed: 1, trustScore: 0.45 },
+    { agentId: 'agent-4', status: 'active', mcpConnected: true, lastSeenAt: 1700000400, gamesPlayed: 15, trustScore: 0.88 },
+    { agentId: 'agent-5', status: 'unknown', mcpConnected: false, lastSeenAt: undefined, gamesPlayed: 0, trustScore: undefined },
+  ];
 
   return state;
 }
