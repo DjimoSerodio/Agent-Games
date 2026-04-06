@@ -2,15 +2,29 @@ import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store';
 import { formatAgentName } from '../lib/format';
 
+const MAX_VISIBLE_MESSAGES = 100;
+const NEAR_BOTTOM_THRESHOLD = 50;
+
 export function ChatFeed() {
   const messages = useGameStore((state) => state.messages);
   const agents = useGameStore((state) => state.gameState.agents);
   const pendingAgentInfo = useGameStore((state) => state.gameState.pendingAgentInfo);
   const feedRef = useRef<HTMLDivElement>(null);
+  const wasNearBottomRef = useRef(true);
+
+  const visibleMessages = messages.length > MAX_VISIBLE_MESSAGES
+    ? messages.slice(-MAX_VISIBLE_MESSAGES)
+    : messages;
 
   useEffect(() => {
-    if (feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    const feed = feedRef.current;
+    if (!feed) return;
+
+    const isNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight <= NEAR_BOTTOM_THRESHOLD;
+    wasNearBottomRef.current = isNearBottom;
+
+    if (isNearBottom) {
+      feed.scrollTop = feed.scrollHeight;
     }
   }, [messages]);
 
@@ -30,12 +44,12 @@ export function ChatFeed() {
       </div>
       
       <div ref={feedRef} className="p-6 flex flex-col gap-5 overflow-y-auto custom-scrollbar flex-1">
-        {messages.length === 0 ? (
+        {visibleMessages.length === 0 ? (
           <div className="p-4 border border-dashed border-[rgba(233,220,190,0.12)] rounded-[18px] text-center text-[13px] leading-[1.5] text-[var(--color-text-muted)] bg-[rgba(10,20,30,0.36)]">
             No messages yet.
           </div>
         ) : (
-          messages.map((msg) => {
+          visibleMessages.map((msg) => {
             const isPrivate = msg.type === 'private';
             const isDiary = msg.type === 'diary';
             
