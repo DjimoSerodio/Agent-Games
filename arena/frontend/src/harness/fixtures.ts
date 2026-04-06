@@ -66,6 +66,9 @@ function baseState(gameId: string): GameState {
     behaviorTags: [],
     trustMatrix: null,
     winnerId: null,
+    agentIdentities: {},
+    attestationReadiness: [],
+    participationReadiness: [],
   };
 }
 
