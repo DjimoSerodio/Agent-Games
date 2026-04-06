@@ -49,3 +49,13 @@
 - Tasks 8 and 9 both complete
 - All changes committed
 - Learnings appended
+
+## Task 8 Fix (2026-04-05) — MISSING AttestationStatusCard
+- Original Task 8 only added IdentityCard and ParticipationCard
+- Task 7 added THREE read models but Task 8 only surfaced TWO
+- AttestationReadiness surface was MISSING
+- Added AttestationStatusCard.tsx to display attestationReadiness items
+- Shows: agentId, placement badge, score, trust delta, cooperation rate, betrayal count
+- Updated App.tsx Row 3: col-span-4 + col-span-4 + col-span-4 (3 equal cards)
+- Build passed ✓, lsp_diagnostics clean
+- Evidence: .sisyphus/evidence/task-8-readiness-surfaces.md updated

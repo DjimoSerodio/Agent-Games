@@ -3,6 +3,7 @@ import { CommitmentLedger } from './components/CommitmentLedger';
 import { CrisisBanner } from './components/CrisisBanner';
 import { GameBoard } from './components/GameBoard';
 import IdentityCard from './components/IdentityCard';
+import AttestationStatusCard from './components/AttestationStatusCard';
 import ParticipationCard from './components/ParticipationCard';
 import { PowerTable } from './components/PowerTable';
 import { TopBar } from './components/TopBar';
@@ -61,10 +62,13 @@ function App() {
 
       {/* Row 3: Protocol Readiness Surfaces */}
       <div className="mt-8 grid grid-cols-12 gap-8 items-start max-[1500px]:grid-cols-1 pb-12">
-        <div className="col-span-3 max-[1500px]:col-auto">
+        <div className="col-span-4 max-[1500px]:col-auto">
           <IdentityCard />
         </div>
-        <div className="col-span-3 max-[1500px]:col-auto">
+        <div className="col-span-4 max-[1500px]:col-auto">
+          <AttestationStatusCard />
+        </div>
+        <div className="col-span-4 max-[1500px]:col-auto">
           <ParticipationCard />
         </div>
       </div>
