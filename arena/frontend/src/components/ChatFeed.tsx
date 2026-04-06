@@ -1,32 +1,89 @@
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { useGameStore } from '../store';
 import { formatAgentName } from '../lib/format';
 
 const MAX_VISIBLE_MESSAGES = 100;
 const NEAR_BOTTOM_THRESHOLD = 50;
 
+function isNearBottom(element: HTMLDivElement) {
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= NEAR_BOTTOM_THRESHOLD;
+}
+
 export function ChatFeed() {
   const messages = useGameStore((state) => state.messages);
   const agents = useGameStore((state) => state.gameState.agents);
   const pendingAgentInfo = useGameStore((state) => state.gameState.pendingAgentInfo);
   const feedRef = useRef<HTMLDivElement>(null);
-  const wasNearBottomRef = useRef(true);
+  const scrollSnapshotRef = useRef({
+    scrollTop: 0,
+    scrollHeight: 0,
+    clientHeight: 0,
+    wasNearBottom: true,
+    visibleMessageIds: [] as string[],
+  });
+  const messageHeightsRef = useRef<Record<string, number>>({});
 
   const visibleMessages = messages.length > MAX_VISIBLE_MESSAGES
     ? messages.slice(-MAX_VISIBLE_MESSAGES)
     : messages;
+  const visibleMessageIds = visibleMessages.map((message) => message.id);
 
-  useEffect(() => {
+  function syncMessageHeights(feed: HTMLDivElement) {
+    const nextHeights = { ...messageHeightsRef.current };
+    const messageNodes = feed.querySelectorAll<HTMLElement>('[data-message-id]');
+
+    messageNodes.forEach((node) => {
+      const { messageId } = node.dataset;
+      if (messageId) {
+        nextHeights[messageId] = node.getBoundingClientRect().height;
+      }
+    });
+
+    messageHeightsRef.current = nextHeights;
+  }
+
+  function syncScrollSnapshot(feed: HTMLDivElement) {
+    scrollSnapshotRef.current = {
+      scrollTop: feed.scrollTop,
+      scrollHeight: feed.scrollHeight,
+      clientHeight: feed.clientHeight,
+      wasNearBottom: isNearBottom(feed),
+      visibleMessageIds,
+    };
+  }
+
+  useLayoutEffect(() => {
     const feed = feedRef.current;
     if (!feed) return;
 
-    const isNearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight <= NEAR_BOTTOM_THRESHOLD;
-    wasNearBottomRef.current = isNearBottom;
+    const previousSnapshot = scrollSnapshotRef.current;
 
-    if (isNearBottom) {
+    if (visibleMessageIds.length === 0) {
+      feed.scrollTop = 0;
+    } else if (previousSnapshot.wasNearBottom) {
       feed.scrollTop = feed.scrollHeight;
+    } else {
+      const visibleIdSet = new Set(visibleMessageIds);
+      const removedIds = previousSnapshot.visibleMessageIds.filter((id) => !visibleIdSet.has(id));
+
+      if (removedIds.length > 0) {
+        const removedContentHeight = removedIds.reduce((total, id) => total + (messageHeightsRef.current[id] ?? 0), 0);
+        const gap = Number.parseFloat(getComputedStyle(feed).rowGap || getComputedStyle(feed).gap || '0');
+        const removedGapHeight = visibleMessageIds.length > 0 ? gap * removedIds.length : 0;
+        feed.scrollTop = Math.max(0, previousSnapshot.scrollTop - removedContentHeight - removedGapHeight);
+      }
     }
+
+    syncMessageHeights(feed);
+    syncScrollSnapshot(feed);
   }, [messages]);
+
+  function handleScroll() {
+    const feed = feedRef.current;
+    if (!feed) return;
+
+    syncScrollSnapshot(feed);
+  }
 
   const context = { agents, pendingAgentInfo };
 
@@ -43,7 +100,7 @@ export function ChatFeed() {
         </div>
       </div>
       
-      <div ref={feedRef} className="p-6 flex flex-col gap-5 overflow-y-auto custom-scrollbar flex-1">
+      <div ref={feedRef} onScroll={handleScroll} className="p-6 flex flex-col gap-5 overflow-y-auto custom-scrollbar flex-1">
         {visibleMessages.length === 0 ? (
           <div className="p-4 border border-dashed border-[rgba(233,220,190,0.12)] rounded-[18px] text-center text-[13px] leading-[1.5] text-[var(--color-text-muted)] bg-[rgba(10,20,30,0.36)]">
             No messages yet.
@@ -56,6 +113,7 @@ export function ChatFeed() {
             return (
               <div 
                 key={msg.id} 
+                data-message-id={msg.id}
                 className="p-5 rounded-[16px] border border-[rgba(233,220,190,0.08)] bg-gradient-to-b from-[rgba(14,26,39,0.86)] to-[rgba(8,16,24,0.78)]"
               >
                 <div className="flex justify-between gap-2.5 items-start">

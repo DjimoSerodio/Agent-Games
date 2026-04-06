@@ -16,7 +16,7 @@ const IdentityCard = memo(function IdentityCard() {
             No agent identities registered.
           </div>
         ) : (
-          identities.map((identity) => (
+          identities.slice(0, 5).map((identity) => (
             <article 
               key={identity.agentId} 
               className="p-4 rounded-[12px] border border-[rgba(233,220,190,0.1)] bg-[rgba(10,14,10,0.4)]"
