@@ -35,5 +35,17 @@
 - Removed unnecessary comments (section labels)
 - Removed unused formatTimestamp function from ParticipationCard
 
-## Task 9 In Progress
-- Need to create handoff contract document for spectator-only, player/agent participation, MCP BYOA patterns
+## Task 9 Completed (2026-04-05)
+- Created `.sisyphus/evidence/task-9-next-phase-handoff.md`
+- Documented 4 contract layers:
+  - Layer 1: Spectator-only state (currently active, read-only)
+  - Layer 2: Readiness state (Tasks 7-8, read-only surfaces)
+  - Layer 3: Player/agent participation (future mutations)
+  - Layer 4: MCP BYOA patterns
+- Distinguished cross-game contracts (AgentIdentity, AttestationReadiness, AgentParticipationReadiness) from Comedy-specific (CrisisState, ecosystemStates, structures, armies)
+- Build passed ✓
+
+## Session Complete
+- Tasks 8 and 9 both complete
+- All changes committed
+- Learnings appended
