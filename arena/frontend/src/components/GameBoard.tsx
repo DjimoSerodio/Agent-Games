@@ -2,6 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameStore } from '../store';
 import { addAlpha, lightenHex, RESOURCE_PALETTE, TERRAIN } from '../lib/colors';
 import { drawHexPath, hexToPixel } from '../lib/hex-math';
+import {
+  drawFarmSprite,
+  drawMineSprite,
+  drawPortSprite,
+  drawTowerSprite,
+  getCachedPattern,
+  getEcosystemColor,
+  RESOURCE_ICONS,
+  clearPatternCache,
+} from '../lib/terrain-textures';
 
 export function GameBoard() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -15,6 +25,7 @@ export function GameBoard() {
   const productionNumber = useGameStore((state) => state.gameState.productionNumber);
   const selectedHex = useGameStore((state) => state.selectedHex);
   const setSelectedHex = useGameStore((state) => state.setSelectedHex);
+
 
   const sortedHexes = useMemo(() => [...hexGrid].sort((a, b) => a.r - b.r || a.q - b.q), [hexGrid]);
   const hexesRef = useRef(sortedHexes);
@@ -55,6 +66,8 @@ export function GameBoard() {
       canvas.height = Math.floor(rect.height * dpr);
       canvas.style.width = `${rect.width}px`;
       canvas.style.height = `${rect.height}px`;
+      // Clear pattern cache on resize
+      clearPatternCache();
       invalidate();
     };
 
@@ -99,20 +112,55 @@ export function GameBoard() {
         const selected = currentSel?.q === hex.q && currentSel?.r === hex.r;
         const hovered = currentHover === key;
 
+        // Generate seed from hex coordinates for consistent patterns
+        const hexSeed = `${hex.q},${hex.r}`;
+
         ctx.save();
+
+        // ============================================
+        // LAYER 1: Shadow (depth)
+        // ============================================
         drawHexPath(ctx, position.x, position.y + 5, inner);
         ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
         ctx.fill();
-        ctx.restore();
 
+        // ============================================
+        // LAYER 2: Base terrain with procedural texture
+        // ============================================
         drawHexPath(ctx, position.x, position.y, inner);
-        const fill = ctx.createRadialGradient(position.x - inner * 0.18, position.y - inner * 0.35, inner * 0.05, position.x, position.y, inner * 1.15);
-        fill.addColorStop(0, lightenHex(terrain.fill, 32));
-        fill.addColorStop(0.38, terrain.fill);
-        fill.addColorStop(1, terrain.dark);
-        ctx.fillStyle = fill;
-        ctx.fill();
+        
+        // Try to use texture pattern
+        const pattern = getCachedPattern(hex.terrain, ctx, size, hexSeed, now);
+        if (pattern) {
+          ctx.fillStyle = pattern;
+          ctx.fill();
+          
+          // Overlay gradient for depth
+          const fill = ctx.createRadialGradient(
+            position.x - inner * 0.18, position.y - inner * 0.35, inner * 0.05,
+            position.x, position.y, inner * 1.15
+          );
+          fill.addColorStop(0, addAlpha(lightenHex(terrain.fill, 32), 0.4));
+          fill.addColorStop(0.5, addAlpha(terrain.fill, 0.3));
+          fill.addColorStop(1, addAlpha(terrain.dark, 0.5));
+          ctx.fillStyle = fill;
+          ctx.fill();
+        } else {
+          // Fallback to gradient fill
+          const fill = ctx.createRadialGradient(
+            position.x - inner * 0.18, position.y - inner * 0.35, inner * 0.05,
+            position.x, position.y, inner * 1.15
+          );
+          fill.addColorStop(0, lightenHex(terrain.fill, 32));
+          fill.addColorStop(0.38, terrain.fill);
+          fill.addColorStop(1, terrain.dark);
+          ctx.fillStyle = fill;
+          ctx.fill();
+        }
 
+        // ============================================
+        // LAYER 3: Diagonal texture lines (subtle)
+        // ============================================
         ctx.save();
         drawHexPath(ctx, position.x, position.y, inner);
         ctx.clip();
@@ -127,6 +175,9 @@ export function GameBoard() {
         }
         ctx.restore();
 
+        // ============================================
+        // LAYER 4: Vertical texture lines (subtle)
+        // ============================================
         ctx.save();
         drawHexPath(ctx, position.x, position.y, inner);
         ctx.clip();
@@ -141,11 +192,32 @@ export function GameBoard() {
         }
         ctx.restore();
 
+        // ============================================
+        // LAYER 5: Ecosystem overlay (color wash)
+        // ============================================
+        if (hex.ecosystemIds && hex.ecosystemIds.length > 0) {
+          ctx.save();
+          drawHexPath(ctx, position.x, position.y, inner);
+          ctx.clip();
+          
+          const ecoColor = getEcosystemColor(hex.ecosystemIds[0].charCodeAt(0));
+          ctx.fillStyle = ecoColor;
+          ctx.globalCompositeOperation = 'overlay';
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // ============================================
+        // LAYER 6: White edge highlight
+        // ============================================
         drawHexPath(ctx, position.x, position.y, inner);
         ctx.strokeStyle = 'rgba(255,255,255,0.06)';
         ctx.lineWidth = 1;
         ctx.stroke();
 
+        // ============================================
+        // LAYER 7: Glow overlay (producing hexes)
+        // ============================================
         const glowAlpha = producing ? 0.28 + 0.12 * pulse : hovered ? 0.18 : 0.06;
         drawHexPath(ctx, position.x, position.y, inner);
         ctx.fillStyle = terrain.glow;
@@ -153,6 +225,32 @@ export function GameBoard() {
         ctx.fill();
         ctx.globalAlpha = 1;
 
+        // ============================================
+        // LAYER 8: Structure sprites (if any)
+        // ============================================
+        if (hex.primaryResource) {
+          const spriteSize = size * 0.35;
+          const spriteY = position.y + size * 0.08;
+          
+          switch (hex.terrain) {
+            case 'plains':
+              drawFarmSprite(ctx, position.x, spriteY, spriteSize, terrain.fill);
+              break;
+            case 'mountains':
+              drawMineSprite(ctx, position.x, spriteY, spriteSize);
+              break;
+            case 'rivers':
+              drawPortSprite(ctx, position.x, spriteY, spriteSize);
+              break;
+            case 'commons':
+              drawTowerSprite(ctx, position.x, spriteY, spriteSize, terrain.fill);
+              break;
+          }
+        }
+
+        // ============================================
+        // LAYER 9: Outer glow for selected/hovered/producing
+        // ============================================
         ctx.save();
         drawHexPath(ctx, position.x, position.y, inner + 3);
         ctx.strokeStyle = lightenHex(terrain.fill, 50);
@@ -171,17 +269,26 @@ export function GameBoard() {
           ctx.restore();
         }
 
+        // ============================================
+        // LAYER 10: Border stroke for hovered
+        // ============================================
         drawHexPath(ctx, position.x, position.y, inner);
         ctx.strokeStyle = lightenHex(terrain.fill, 45);
         ctx.lineWidth = hovered ? 3 : 2.4;
         ctx.stroke();
 
+        // ============================================
+        // LAYER 11: Terrain symbol
+        // ============================================
         ctx.fillStyle = 'rgba(252, 244, 225, 0.75)';
         ctx.font = `700 ${size * 0.115}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(terrain.symbol, position.x, position.y - size * 0.17);
 
+        // ============================================
+        // LAYER 12: Region name label
+        // ============================================
         ctx.save();
         ctx.fillStyle = 'rgba(247, 238, 220, 0.68)';
         ctx.shadowColor = 'rgba(0,0,0,0.75)';
@@ -190,19 +297,182 @@ export function GameBoard() {
         ctx.fillText((hex.regionName || terrain.label).toUpperCase(), position.x, position.y + size * 0.21);
         ctx.restore();
 
+        // ============================================
+        // LAYER 13: Production number badge (game-piece style)
+        // ============================================
         if (Number(hex.productionNumber || 0) > 0 && hex.terrain !== 'wasteland') {
           const badgeY = position.y - inner * 0.52;
+          const badgeRadius = size * 0.18;
+          
+          // Shadow
           ctx.beginPath();
-          ctx.arc(position.x, badgeY, size * 0.16, 0, Math.PI * 2);
-          ctx.fillStyle = producing ? 'rgba(252, 244, 225, 0.95)' : 'rgba(12, 15, 12, 0.82)';
+          ctx.arc(position.x + 2, badgeY + 2, badgeRadius, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0,0,0,0.3)';
           ctx.fill();
-          ctx.strokeStyle = producing ? addAlpha(terrain.fill, 0.72) : 'rgba(252, 244, 225, 0.16)';
-          ctx.lineWidth = 1.5;
+          
+          // Badge background with gradient
+          const badgeGrad = ctx.createRadialGradient(
+            position.x - badgeRadius * 0.3, badgeY - badgeRadius * 0.3, 0,
+            position.x, badgeY, badgeRadius
+          );
+          
+          if (producing) {
+            // Active producing badge - golden/illuminated
+            badgeGrad.addColorStop(0, '#fcf4e1');
+            badgeGrad.addColorStop(0.5, '#e8d4a0');
+            badgeGrad.addColorStop(1, '#c4a85a');
+            ctx.fillStyle = badgeGrad;
+          } else {
+            // Inactive badge - dark with subtle border
+            badgeGrad.addColorStop(0, '#1a1a1a');
+            badgeGrad.addColorStop(1, '#0d0d0d');
+            ctx.fillStyle = badgeGrad;
+          }
+          
+          ctx.beginPath();
+          ctx.arc(position.x, badgeY, badgeRadius, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Badge border
+          ctx.beginPath();
+          ctx.arc(position.x, badgeY, badgeRadius, 0, Math.PI * 2);
+          ctx.strokeStyle = producing 
+            ? addAlpha('#ddb469', 0.9) 
+            : 'rgba(252, 244, 225, 0.25)';
+          ctx.lineWidth = producing ? 2.5 : 1.5;
           ctx.stroke();
-          ctx.fillStyle = producing ? '#1a1510' : 'rgba(247,238,220,0.78)';
-          ctx.font = `800 ${size * 0.155}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
-          ctx.fillText(String(hex.productionNumber), position.x, badgeY + 1);
+          
+          // Inner ring detail
+          ctx.beginPath();
+          ctx.arc(position.x, badgeY, badgeRadius * 0.75, 0, Math.PI * 2);
+          ctx.strokeStyle = producing 
+            ? addAlpha('#ddb469', 0.4) 
+            : 'rgba(252, 244, 225, 0.1)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          
+          // Number text
+          ctx.fillStyle = producing ? '#1a1510' : 'rgba(247,238,220,0.85)';
+          ctx.font = `800 ${size * 0.16}px SFMono-Regular, Menlo, Monaco, Consolas, monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          
+          // Text shadow for depth
+          if (!producing) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillText(String(hex.productionNumber), position.x + 1, badgeY + 2);
+            ctx.restore();
+          }
+          
+          ctx.fillText(String(hex.productionNumber), position.x, badgeY);
+          
+          // Producing glow effect
+          if (producing) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(position.x, badgeY, badgeRadius + 4, 0, Math.PI * 2);
+            ctx.strokeStyle = addAlpha('#ddb469', 0.5 * pulse);
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.restore();
+          }
         }
+
+        // ============================================
+        // LAYER 14: Resource icons in corners
+        // ============================================
+        if (hex.primaryResource) {
+          const iconSize = size * 0.12;
+          const iconOffset = size * 0.55;
+          const iconPositions = [
+            { x: position.x - iconOffset, y: position.y }, // Left
+            { x: position.x + iconOffset, y: position.y }, // Right
+          ];
+          
+          const iconFn = RESOURCE_ICONS[hex.primaryResource] || RESOURCE_ICONS.grain;
+          
+          iconPositions.forEach((pos, idx) => {
+            // Only show one icon on smaller hexes, alternating based on hex coordinates
+            if (idx === 1 && size < 50) return;
+            
+            // Background circle
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(pos.x, pos.y, iconSize * 0.8, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(8, 16, 24, 0.7)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(233, 220, 190, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.restore();
+            
+            // Icon
+            iconFn(ctx, pos.x, pos.y, iconSize);
+          });
+        }
+
+        // ============================================
+        // LAYER 15: Cinematic hover/selection highlights
+        // ============================================
+        if (hovered || selected) {
+          ctx.save();
+          
+          // Radial spotlight effect
+          const spotlightGrad = ctx.createRadialGradient(
+            position.x, position.y, inner * 0.5,
+            position.x, position.y, inner * 1.3
+          );
+          spotlightGrad.addColorStop(0, addAlpha('#ddb469', selected ? 0.15 : 0.08));
+          spotlightGrad.addColorStop(0.7, addAlpha('#ddb469', selected ? 0.05 : 0.02));
+          spotlightGrad.addColorStop(1, 'transparent');
+          
+          ctx.fillStyle = spotlightGrad;
+          ctx.fillRect(
+            position.x - inner * 1.5,
+            position.y - inner * 1.5,
+            inner * 3,
+            inner * 3
+          );
+          
+          // Corner accents for selection
+          if (selected) {
+            const cornerSize = size * 0.15;
+            ctx.strokeStyle = '#ddb469';
+            ctx.lineWidth = 2;
+            
+            // Top-left corner
+            ctx.beginPath();
+            ctx.moveTo(position.x - inner + cornerSize, position.y - inner * 0.87);
+            ctx.lineTo(position.x - inner + 5, position.y - inner * 0.87);
+            ctx.lineTo(position.x - inner + 5, position.y - inner * 0.87 + cornerSize);
+            ctx.stroke();
+            
+            // Top-right corner
+            ctx.beginPath();
+            ctx.moveTo(position.x + inner - cornerSize, position.y - inner * 0.87);
+            ctx.lineTo(position.x + inner - 5, position.y - inner * 0.87);
+            ctx.lineTo(position.x + inner - 5, position.y - inner * 0.87 + cornerSize);
+            ctx.stroke();
+            
+            // Bottom corners
+            ctx.beginPath();
+            ctx.moveTo(position.x - inner + cornerSize, position.y + inner * 0.87);
+            ctx.lineTo(position.x - inner + 5, position.y + inner * 0.87);
+            ctx.lineTo(position.x - inner + 5, position.y + inner * 0.87 - cornerSize);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(position.x + inner - cornerSize, position.y + inner * 0.87);
+            ctx.lineTo(position.x + inner - 5, position.y + inner * 0.87);
+            ctx.lineTo(position.x + inner - 5, position.y + inner * 0.87 - cornerSize);
+            ctx.stroke();
+          }
+          
+          ctx.restore();
+        }
+
+        ctx.restore();
       }
     };
 
@@ -226,6 +496,7 @@ export function GameBoard() {
       observer.disconnect();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      clearPatternCache();
     };
   }, []);
 
