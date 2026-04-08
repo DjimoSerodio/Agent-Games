@@ -231,3 +231,8 @@ JJ|- User needs to: fork on GitHub, add as remote, push, PR
 - Confirmed via web + git probe that `https://github.com/DjimoSerodio/coordination-games` does not exist yet
 - `git ls-remote https://github.com/DjimoSerodio/coordination-games.git` returns repository not found
 - Upstream PR work is blocked on actual fork creation first, not just local remote wiring
+
+## Upstream PR Handoff Artifact (2026-04-08)
+- Added `.sisyphus/notepads/performance-next-phase-8004/upstream-pr-handoff.md`
+- Captures exact upstream commit stack, verified build/runtime state, fork commands, and recommended 4-PR split
+- This makes the remaining upstream blocker operationally complete once the GitHub fork exists
