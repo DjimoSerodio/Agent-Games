@@ -16,7 +16,7 @@ export function createInitialComedyState(
   ) => CommonsHealthSnapshot,
 ): ComedyGameState {
   const mapPlayerCount = Math.max(4, Math.min(12, config.maxPlayers));
-  const worldMap = createComedyWorldMap(mapPlayerCount);
+  const worldMap = createComedyWorldMap();
   const hexGrid = generateHexGrid(mapPlayerCount);
   const worldGrid = projectWorldMapToHexGrid(worldMap);
   for (const [, worldTile] of worldGrid) {
