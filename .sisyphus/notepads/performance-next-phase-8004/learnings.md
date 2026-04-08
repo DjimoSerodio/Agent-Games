@@ -226,3 +226,8 @@ JJ|- User needs to: fork on GitHub, add as remote, push, PR
 - Upstream contribution work is blocked on GitHub fork/auth only: local upstream repo has clean history ready to push, but no write access to `coordination-games/coordination-games`
 - Upstream local commits ready for fork push: d6672c0, acae6e2, 6227099, e38356f, 0f371a5, 2fde784, d766287, 5043648, 5434ccb, d4a2407
 - When fork exists: add remote, push branch, open PR(s) for Comedy plugin, agent-sdk, IPD game, and IPD strategies
+
+## Fork Probe Result (2026-04-08)
+- Confirmed via web + git probe that `https://github.com/DjimoSerodio/coordination-games` does not exist yet
+- `git ls-remote https://github.com/DjimoSerodio/coordination-games.git` returns repository not found
+- Upstream PR work is blocked on actual fork creation first, not just local remote wiring
