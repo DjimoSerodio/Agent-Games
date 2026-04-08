@@ -236,3 +236,8 @@ JJ|- User needs to: fork on GitHub, add as remote, push, PR
 - Added `.sisyphus/notepads/performance-next-phase-8004/upstream-pr-handoff.md`
 - Captures exact upstream commit stack, verified build/runtime state, fork commands, and recommended 4-PR split
 - This makes the remaining upstream blocker operationally complete once the GitHub fork exists
+
+## Non-Plan Local Artifact State (2026-04-08)
+- Main repo working tree is not globally clean because of pre-existing untracked local artifacts (screenshots, local notepad dirs, frontend public assets, boulder state)
+- These files were not created as part of `performance-next-phase-8004` close-out and were intentionally left untouched
+- They should not be interpreted as remaining implementation work for this tranche

@@ -18,3 +18,7 @@
 - Plan close-out blocker: `performance-next-phase-8004` is fully complete, but remains open until the user gives explicit `okay`.
 - Upstream publish blocker: `Coordination game-6o1` is blocked because the GitHub fork `https://github.com/DjimoSerodio/coordination-games` does not exist yet.
 - Upstream PR handoff is documented in `.sisyphus/notepads/performance-next-phase-8004/upstream-pr-handoff.md`, including the exact commit stack, fork commands, and recommended PR split.
+
+## 2026-04-08 — Non-plan local artifact state
+- Main repo still has unrelated untracked local artifacts (screenshots, local state, frontend public assets).
+- They are outside the scope of `performance-next-phase-8004` and were left untouched rather than guessed-at or swept up.
