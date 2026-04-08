@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { AGENT_COLORS } from '../lib/colors';
+import { getBackendWebSocketUrl } from '../lib/backend';
 import { formatAgentName } from '../lib/format';
 import { useGameStore, type AgentState, type Attestation, type Commitment, type HexTile } from '../store';
 
@@ -48,7 +49,7 @@ export function useGameSocket() {
 
     function connect() {
       setConnectionStatus('connecting');
-      const ws = new WebSocket(`ws://${window.location.hostname}:3000`);
+      const ws = new WebSocket(getBackendWebSocketUrl());
       wsRef.current = ws;
 
       ws.onopen = () => setConnectionStatus('connected');

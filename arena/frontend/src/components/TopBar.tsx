@@ -1,4 +1,5 @@
 import { useGameStore } from '../store';
+import { getBackendHttpOrigin } from '../lib/backend';
 
 export function TopBar() {
   const round = useGameStore((state) => state.gameState.round);
@@ -20,7 +21,7 @@ export function TopBar() {
 
   const handleRunSimulation = async () => {
     try {
-      await fetch('/api/simulate', { method: 'POST' });
+      await fetch(`${getBackendHttpOrigin()}/api/simulate`, { method: 'POST' });
     } catch (err) {
       console.error('Failed to run simulation', err);
     }
