@@ -220,3 +220,9 @@ JJ|- User needs to: fork on GitHub, add as remote, push, PR
 - Closed follow-up bd issues: Coordination game-hvt, Coordination game-u6o, Coordination game-68s, Coordination game-5cp, Coordination game-l9v
 - These docs remain local planning artifacts because docs/ is gitignored in this repo by design
 - Remaining blockers are external: explicit user "okay" to close performance-next-phase-8004 and GitHub fork access for upstream PR work
+
+## Final External Blockers (2026-04-08)
+- Plan close-out is blocked on explicit user approval only: user must reply with "okay" to allow closing `performance-next-phase-8004`
+- Upstream contribution work is blocked on GitHub fork/auth only: local upstream repo has clean history ready to push, but no write access to `coordination-games/coordination-games`
+- Upstream local commits ready for fork push: d6672c0, acae6e2, 6227099, e38356f, 0f371a5, 2fde784, d766287, 5043648, 5434ccb, d4a2407
+- When fork exists: add remote, push branch, open PR(s) for Comedy plugin, agent-sdk, IPD game, and IPD strategies
