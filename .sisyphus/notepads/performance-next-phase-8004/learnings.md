@@ -214,3 +214,9 @@ JJ|- User needs to: fork on GitHub, add as remote, push, PR
 - Added `docs/planning/OLYMPIAD_EVENT_PLAN.md` with event shape, readiness gates, onboarding flows, schedule, leaderboard schema, risks, and next actions
 - Split follow-up execution into bd issues: Coordination game-hvt, Coordination game-u6o, Coordination game-68s, Coordination game-5cp, Coordination game-l9v
 - Planning issue `Coordination game-0ev` can now close cleanly because the baseline plan and execution breakdown both exist
+
+## Olympiad Follow-up Docs (2026-04-08)
+- Added local planning docs: OLYMPIAD_BUILDER_CALL.md, OLYMPIAD_PARTICIPANT_CALL.md, OLYMPIAD_REGISTRATION_SCHEMA.md, OLYMPIAD_LEADERBOARD_SPEC.md, OLYMPIAD_DRY_RUN_AND_GO_NO_GO.md
+- Closed follow-up bd issues: Coordination game-hvt, Coordination game-u6o, Coordination game-68s, Coordination game-5cp, Coordination game-l9v
+- These docs remain local planning artifacts because docs/ is gitignored in this repo by design
+- Remaining blockers are external: explicit user "okay" to close performance-next-phase-8004 and GitHub fork access for upstream PR work
