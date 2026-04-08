@@ -173,3 +173,18 @@ JX|- arena/frontend$ npm run build: exits 0 ✓
 CF|- npx vitest run tests/mcp-server.test.ts: 2/2 pass ✓
 PD|- arena/tests/hex-grid.test.ts: 21/21 pass ✓
 YV|- Comedy plugin (upstream): tsc --skipLibCheck exits 0 ✓
+
+## Sprint Completion (2026-04-08 continuation)
+XT|- Agent SDK build: tsc --skipLibCheck exits 0 ✓ (commit 0f371a5 upstream)
+YH|- agent-sdk/src/agent-base.ts: removed leaked 'KJ|' LINE#ID hash text
+JJ|- mcp-client.ts: fixed simple CLI arg from boolean to string type
+MK|- Server Comedy plugin wiring: added @coordination-games/game-comedy-commons to server/pkg
+YB|- End-to-end test: POST /api/lobbies/create gameType=comedy-of-the-commons → lobby created ✓
+ZB|- Framework API: ["oathbreaker","comedy-of-the-commons","capture-the-lobster"] ✓
+JK|- Commit 2fde784 (upstream): server Comedy plugin wiring
+NM|- Main repo: committed all evidence files (31 files, f0ffd26) — pushed to origin/main ✓
+
+## Upstream Clone Status (still local, needs fork)
+QW|- 6 local commits: d6672c0, acae6e2, 6227099, e38356f, 0f371a5, 2fde784
+XT|- No write access to coordination-games/coordination-games.git
+JJ|- User needs to: fork on GitHub, add as remote, push, PR
