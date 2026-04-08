@@ -94,7 +94,7 @@ describe("generateHexGrid", () => {
     const grid = generateHexGrid(4, 42);
     const center = grid.get("0,0");
     expect(center).toBeDefined();
-    expect(center!.terrain).toBe("nexus");
+    expect(center!.terrain).toBe("commons");
     expect(center!.productionNumber).toBe(7);
   });
 
@@ -142,7 +142,7 @@ describe("generateHexGrid", () => {
   it("contains all required terrain types", () => {
     const grid = generateHexGrid(4, 42);
     const terrains = new Set(Array.from(grid.values()).map(t => t.terrain));
-    expect(terrains.has("nexus")).toBe(true);
+    expect(terrains.has("commons")).toBe(true);
     // Should have at least plains, forest, mountains (may or may not have rivers/wasteland depending on seed)
     expect(terrains.size).toBeGreaterThanOrEqual(3);
   });
@@ -172,7 +172,7 @@ describe("getStartingPositions", () => {
       const tile = grid.get(hexKey(pos));
       expect(tile).toBeDefined();
       expect(tile!.terrain).not.toBe("wasteland");
-      expect(tile!.terrain).not.toBe("nexus");
+      expect(tile!.terrain).not.toBe("commons");
     }
   });
 });
