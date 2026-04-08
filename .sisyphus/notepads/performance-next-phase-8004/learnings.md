@@ -147,3 +147,16 @@ QM|- bd issues: 3 ready items not addressed (Agent SDK template, IPD implementat
 - Comedy negotiation: free-form chat (basic-chat) + optional submit_trade action
 - gameType: 'comedy-of-the-commons', version: '0.1.0'
 - BEFORE_AFTER_REPORT.md created for Lucian
+
+## Upstream Blocker (2026-04-08)
+- Upstream clone has NO write access to coordination-games/coordination-games
+- 4 local commits waiting: d6672c0, acae6e2, 6227099 (Comedy plugin), e38356f (report)
+- User needs to: fork on GitHub, add fork as remote, push, create PR
+- Comedy plugin builds clean but can't be tested end-to-end without upstream server changes
+- Server references games as npm workspace deps - plugin needs to be added to server/package.json
+
+## Build Fix (2026-04-08)
+- Pre-existing TS error in initial-state.ts: createComedyWorldMap() called with mapPlayerCount arg but takes 0 args
+- Fixed: removed argument, build now passes clean
+- MCP tests still pass (2/2)
+- Commit: 90ad75e — pushed
