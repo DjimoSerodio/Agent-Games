@@ -201,3 +201,11 @@ JJ|- User needs to: fork on GitHub, add as remote, push, PR
 - Runtime verification passes on **port 3002**: `/api/framework` lists `prisoners-dilemma`, `/api/lobbies/create` creates 2-player lobby ✓
 - Server wiring added: `@coordination-games/game-prisoners-dilemma` dep + side-effect import in `packages/server/src/api.ts`
 - Note from user: avoid local port 3000; use 3002 for local deployments/tests
+
+## IPD Strategy Bots (2026-04-08)
+- Added built-in strategies in upstream `packages/games/prisoners-dilemma/src/strategies.ts`
+- Strategies shipped: always_cooperate, always_defect, tit_for_tat, grudger, detective
+- Added deterministic helpers in `src/tournament.ts` for match and round-robin benchmarking
+- Build passes after strategy exports: `packages/games/prisoners-dilemma$ npm run build` ✓
+- Deterministic verification via Node script passed for tit_for_tat, grudger, detective, exploit matchup, and round-robin totals ✓
+- Commit d4a2407: IPD benchmark strategies
