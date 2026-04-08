@@ -1,0 +1,10 @@
+=== CHAT BOUNDED ===
+timestamp: 2026-04-06T00:25:00.000Z
+build: PASS (exit 0)
+changes:
+  - MAX_VISIBLE_MESSAGES = 100
+  - messages sliced to last 100 for rendering
+  - smart autoscroll: only scroll to bottom if user was near bottom
+  - preserves off-bottom reading position when user scrolls up
+dom_budget: 200
+dom_estimate: 100 messages * ~5 nodes = 500 worst case but slicing to 100 limits to ~200 nodes

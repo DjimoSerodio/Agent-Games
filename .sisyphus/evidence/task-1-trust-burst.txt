@@ -1,0 +1,3 @@
+=== TRUST-BURST ===
+timestamp: 2026-04-05T23:52:21.569Z
+updateMs: measured=0.013833000000204265 budget=16 PASS

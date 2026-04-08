@@ -1,0 +1,3 @@
+=== CHAT-BURST ===
+timestamp: 2026-04-05T23:52:21.568Z
+domNodes: measured=510 budget=200 FAIL

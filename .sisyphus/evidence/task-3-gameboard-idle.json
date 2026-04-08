@@ -1,0 +1,16 @@
+{
+  "task": "gameboard-idle",
+  "timestamp": "2026-04-06T00:20:00.000Z",
+  "build": "PASS",
+  "changes": [
+    "replaced perpetual rAF loop with dirty-flag + event-driven rendering",
+    "added visibilitychange listener to pause when tab hidden",
+    "invalidate() called on: hexGrid/productionNumber/selectedHex change, hover change, selection change, resize",
+    "production pulse animation preserved (bounded sine wave)"
+  ],
+  "key_implementation": {
+    "dirty_flag": "dirtyRef tracks whether redraw needed",
+    "raf_gating": "scheduleRedraw() only calls rAF if dirty && not hidden",
+    "visibility": "on document.hidden=true, cancels pending raf and skips scheduling"
+  }
+}

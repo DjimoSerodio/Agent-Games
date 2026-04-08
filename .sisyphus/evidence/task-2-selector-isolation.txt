@@ -1,0 +1,10 @@
+=== SELECTOR ISOLATION ===
+timestamp: 2026-04-06T00:15:00.000Z
+build: PASS (exit 0)
+components_fixed:
+  - ChatFeed.tsx: narrow to messages, agents, pendingAgentInfo
+  - TrustGraph.tsx: narrow to trustMatrix, agents, pendingAgentInfo
+  - PowerTable.tsx: narrow to agents, pendingAgentInfo, agentOrder, winnerId
+  - TopBar.tsx: narrow to round, phase, prizePoolWei, payablePrizePoolWei, slashedPrizePoolWei, commonsHealth
+  - WorldHealthSidebar.tsx: narrow to commonsHealth, ecosystemStates, prizePoolWei, payablePrizePoolWei, slashedPrizePoolWei, carryoverPrizePoolWei
+  - CommitmentLedger.tsx: narrow to commitments, attestations, agents, pendingAgentInfo

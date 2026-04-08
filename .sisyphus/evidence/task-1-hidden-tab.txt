@@ -1,0 +1,3 @@
+=== HIDDEN-TAB ===
+timestamp: 2026-04-05T23:52:21.569Z
+rerenders: measured=1 budget=0 FAIL

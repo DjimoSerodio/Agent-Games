@@ -1,0 +1,3 @@
+=== IDLE ===
+timestamp: 2026-04-05T23:52:21.568Z
+fps: measured=46691771 budget=0 FAIL

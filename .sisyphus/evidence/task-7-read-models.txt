@@ -1,0 +1,12 @@
+=== READ MODELS ===
+timestamp: 2026-04-06T00:40:00.000Z
+build: PASS (exit 0)
+interfaces_added:
+  - AgentIdentity: ERC-8004 identity metadata (agentId, walletAddress, name, mcpEndpoint, capabilities, registeredAt, chainId)
+  - AttestationReadiness: EAS attestation shape (uid, schema, gameId, agentId, placement, score, trustDelta, cooperationRate, betrayalCount, ecosystemImpact, attestedAt)
+  - AgentParticipationReadiness: participation status (agentId, status, mcpConnected, lastSeenAt, gamesPlayed, trustScore)
+game_state_fields:
+  - agentIdentities: Record<string, AgentIdentity>
+  - attestationReadiness: AttestationReadiness[]
+  - participationReadiness: AgentParticipationReadiness[]
+all_fields_optional_safe_defaults: empty objects/arrays preserve existing behavior
