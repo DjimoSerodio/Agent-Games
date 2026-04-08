@@ -22,3 +22,8 @@
 ## 2026-04-08 — Non-plan local artifact state
 - Main repo still has unrelated untracked local artifacts (screenshots, local state, frontend public assets).
 - They are outside the scope of `performance-next-phase-8004` and were left untouched rather than guessed-at or swept up.
+
+## 2026-04-08 — Upstream publication blocker re-check
+- Direct branch push to `coordination-games/coordination-games` is currently blocked too: dry-run push to `origin` returned `403 Permission denied to DjimoSerodio`.
+- Practical unblock paths are now: (a) confirmed upstream push access, or (b) fork creation.
+- Local alternative auth paths are also unavailable right now: `gh auth status` shows no logged-in hosts, and SSH access fails with `Permission denied (publickey)`.

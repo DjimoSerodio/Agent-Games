@@ -241,3 +241,14 @@ JJ|- User needs to: fork on GitHub, add as remote, push, PR
 - Main repo working tree is not globally clean because of pre-existing untracked local artifacts (screenshots, local notepad dirs, frontend public assets, boulder state)
 - These files were not created as part of `performance-next-phase-8004` close-out and were intentionally left untouched
 - They should not be interpreted as remaining implementation work for this tranche
+
+## Plan File Sync (2026-04-08)
+- Synchronized stale unchecked acceptance boxes in `.sisyphus/plans/performance-next-phase-8004.md` to match the verified completed work
+- Verified with search that the plan file now has zero remaining `- [ ]` items
+- Remaining blockers are external only: explicit user `okay` and GitHub fork creation for upstream PR publishing
+
+## Upstream Publication Path Re-check (2026-04-08)
+- Re-tested the “best practice” path of pushing a branch directly to Lucian's repo
+- `git push --dry-run origin HEAD:refs/heads/djimo/upstream-sprint` returned `403 Permission denied to DjimoSerodio`
+- So upstream publication is blocked on **either** confirmed upstream write access **or** creating a fork; it is no longer accurate to describe the blocker as fork-only
+- Also verified that no alternative auth path is active locally: `gh auth status` shows no logged-in hosts and SSH access to `git@github.com:coordination-games/coordination-games.git` fails with `Permission denied (publickey)`

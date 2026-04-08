@@ -4,6 +4,9 @@
 
 - GitHub fork does not exist yet: `https://github.com/DjimoSerodio/coordination-games`
 - Verified on 2026-04-08 by 404 probe and `git ls-remote` repository-not-found
+- Direct branch push to upstream also fails right now: `git push --dry-run origin HEAD:refs/heads/djimo/upstream-sprint` returned `403 Permission denied to DjimoSerodio`
+- GitHub CLI is not authenticated locally: `gh auth status` reports no logged-in hosts
+- SSH auth path is not available locally: `git@github.com: Permission denied (publickey)` on both `git ls-remote` and dry-run push
 - bd issue: `Coordination game-6o1` (blocked)
 
 ## Local upstream repo
@@ -33,6 +36,26 @@
 - Runtime verification used port `3002`, not `3000`
 - `/api/framework` includes `prisoners-dilemma` after wiring
 - `POST /api/lobbies/create` works for `comedy-of-the-commons` and `prisoners-dilemma`
+
+## Publication paths
+
+### Option A — direct branch on upstream (preferred if permissions are fixed)
+
+This is the best practice if Lucian wants direct collaboration in the main repo.
+
+Current status:
+
+- blocked: push to `origin` currently returns `403 Permission denied to DjimoSerodio`
+
+Once write access is confirmed, use:
+
+```bash
+git -C "/Users/djimoserodio/Documents/coordination-games" push -u origin HEAD:refs/heads/djimo/upstream-sprint
+```
+
+### Option B — fork workflow (fallback if upstream push access stays blocked)
+
+If direct push remains blocked, create the fork and use the commands below.
 
 ## Immediate commands after fork creation
 
