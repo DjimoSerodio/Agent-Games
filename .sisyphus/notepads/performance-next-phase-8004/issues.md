@@ -13,3 +13,8 @@
 ## 2026-04-06 — F3 re-run result
 - Chat burst QA now passes: the tracked off-bottom message stayed effectively pinned in place (`0px -> 6.25px`) while the rendered window trimmed to the latest 100 messages (`25 -> 124`).
 - Readiness runtime gap still reproduces in QA: even when `game.state_update` carries populated `agentIdentities`, `attestationReadiness`, and `participationReadiness`, all three readiness cards remain in their empty states.
+
+## 2026-04-08 — External blockers after completion
+- Plan close-out blocker: `performance-next-phase-8004` is fully complete, but remains open until the user gives explicit `okay`.
+- Upstream publish blocker: `Coordination game-6o1` is blocked because the GitHub fork `https://github.com/DjimoSerodio/coordination-games` does not exist yet.
+- Upstream PR handoff is documented in `.sisyphus/notepads/performance-next-phase-8004/upstream-pr-handoff.md`, including the exact commit stack, fork commands, and recommended PR split.
