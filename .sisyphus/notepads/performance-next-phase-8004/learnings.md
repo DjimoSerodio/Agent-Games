@@ -185,6 +185,10 @@ JK|- Commit 2fde784 (upstream): server Comedy plugin wiring
 NM|- Main repo: committed all evidence files (31 files, f0ffd26) — pushed to origin/main ✓
 
 ## Upstream Clone Status (still local, needs fork)
-QW|- 6 local commits: d6672c0, acae6e2, 6227099, e38356f, 0f371a5, 2fde784
+## Upstream Clone Status (local commits, needs fork — user action)
+YX|- 9 local commits: d6672c0, acae6e2, 6227099, e38356f, 0f371a5, 2fde784, d766287, 5043648, (builder-quickstart)
+XT|- Agent SDK fully committed: 5043648 + d766287 (BuilderBot example)
+JJ|- gh CLI not authenticated — fork requires manual action on GitHub
+NN|- Plan close-out: awaiting user explicit 'okay' to mark performance-next-phase-8004 complete
 XT|- No write access to coordination-games/coordination-games.git
 JJ|- User needs to: fork on GitHub, add as remote, push, PR
