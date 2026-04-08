@@ -129,3 +129,21 @@ YM|- CLAUDE.md updated with tested Node 22 workflow
 QP|- Comedy-of-the-Commons plugin prototype: NOT STARTED (Oracle recommended first slice)
 KB|- Before/after report for Lucian: NOT STARTED
 QM|- bd issues: 3 ready items not addressed (Agent SDK template, IPD implementation, Olympiad planning)
+
+## Art Direction Overhaul (2026-04-08)
+- P0 issue j80: COMPLETED — pushed as b2cf8aa
+- New file: `arena/frontend/src/lib/terrain-textures.ts` (667 lines)
+- Updated: `GameBoard.tsx` — 9-layer to 15-layer pipeline
+- Features: forest/plains/mountain/river textures, structure sprites, resource icons, ecosystem overlays, production badges, hover spotlights
+- Build passes, lsp_diagnostics zero errors
+- Agent left mock data in store.ts — reverted via git checkout
+
+## Comedy Plugin Prototype (2026-04-08)
+- P0 j80 CLOSED: Art direction overhaul pushed as b2cf8aa
+- Comedy plugin created: `packages/games/comedy-of-the-commons/` (4 files, 663 lines)
+- Plugin builds successfully: tsc --skipLibCheck exits 0
+- Key files: types.ts, game.ts, plugin.ts, index.ts, package.json, tsconfig.json
+- Lobby: FFA, 4 players, basic-chat required, queueTimeoutMs 300000
+- Comedy negotiation: free-form chat (basic-chat) + optional submit_trade action
+- gameType: 'comedy-of-the-commons', version: '0.1.0'
+- BEFORE_AFTER_REPORT.md created for Lucian
