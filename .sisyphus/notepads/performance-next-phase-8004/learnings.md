@@ -192,3 +192,12 @@ JJ|- gh CLI not authenticated — fork requires manual action on GitHub
 NN|- Plan close-out: awaiting user explicit 'okay' to mark performance-next-phase-8004 complete
 XT|- No write access to coordination-games/coordination-games.git
 JJ|- User needs to: fork on GitHub, add as remote, push, PR
+
+
+## IPD Implementation Progress (2026-04-08)
+- Added new upstream package: `packages/games/prisoners-dilemma/`
+- Files created: `types.ts`, `game.ts`, `plugin.ts`, `index.ts`, `package.json`, `tsconfig.json`, `test.test.ts`
+- Build passes: `packages/games/prisoners-dilemma$ npm run build` ✓
+- Runtime verification passes on **port 3002**: `/api/framework` lists `prisoners-dilemma`, `/api/lobbies/create` creates 2-player lobby ✓
+- Server wiring added: `@coordination-games/game-prisoners-dilemma` dep + side-effect import in `packages/server/src/api.ts`
+- Note from user: avoid local port 3000; use 3002 for local deployments/tests
