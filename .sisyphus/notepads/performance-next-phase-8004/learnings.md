@@ -209,3 +209,8 @@ JJ|- User needs to: fork on GitHub, add as remote, push, PR
 - Build passes after strategy exports: `packages/games/prisoners-dilemma$ npm run build` ✓
 - Deterministic verification via Node script passed for tit_for_tat, grudger, detective, exploit matchup, and round-robin totals ✓
 - Commit d4a2407: IPD benchmark strategies
+
+## Olympiad Planning Baseline (2026-04-08)
+- Added `docs/planning/OLYMPIAD_EVENT_PLAN.md` with event shape, readiness gates, onboarding flows, schedule, leaderboard schema, risks, and next actions
+- Split follow-up execution into bd issues: Coordination game-hvt, Coordination game-u6o, Coordination game-68s, Coordination game-5cp, Coordination game-l9v
+- Planning issue `Coordination game-0ev` can now close cleanly because the baseline plan and execution breakdown both exist
