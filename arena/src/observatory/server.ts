@@ -134,6 +134,9 @@ export class ObservatoryServer {
           data: {
             snapshots: this.trustGraph.getAllSnapshots(),
             readModels: this.trustGraph.getAllReadModels(),
+            dossiers: this.trustGraph.getAllTrustDossiers(),
+            projections: this.trustGraph.getAllGraduatedProjections(),
+            snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
           },
         });
         break;
@@ -335,6 +338,8 @@ export class ObservatoryServer {
       res.json({
         snapshots: this.trustGraph.getAllSnapshots(),
         readModels: this.trustGraph.getAllReadModels(),
+        dossiers: this.trustGraph.getAllTrustDossiers(),
+        projections: this.trustGraph.getAllGraduatedProjections(),
         snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
       });
     });
@@ -342,7 +347,9 @@ export class ObservatoryServer {
     this.app.get("/api/trust/agent/:agentId", (req, res) => {
       const snapshot = this.trustGraph.getSnapshot(req.params.agentId);
       const readModel = this.trustGraph.getReadModel(req.params.agentId);
-      res.json({ snapshot, readModel });
+      const dossier = this.trustGraph.getTrustDossier(req.params.agentId);
+      const projection = this.trustGraph.getGraduatedProjection(req.params.agentId);
+      res.json({ snapshot, readModel, dossier, projection });
     });
 
     // Prediction markets (placeholder)
