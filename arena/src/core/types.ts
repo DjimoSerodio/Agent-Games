@@ -14,9 +14,17 @@ export interface AgentIdentity {
   id: AgentId;
   name: string;
   address: string; // Ethereum address (ERC-8004)
+  chainAgentId?: number; // canonical coordination-games / ERC-8004 id
   agentNftId?: number; // ERC-8004 token ID
   skillsHash: string; // Hash of the skills.md file
   registeredAt: number;
+  chainId?: number;
+  harnessKind?: string;
+  mcpEndpoint?: string;
+  capabilities?: string[];
+  trustSnapshotRef?: string;
+  trustReducerVersion?: string;
+  agentURI?: string;
 }
 
 // ============================================================
