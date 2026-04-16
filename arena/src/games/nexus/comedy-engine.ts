@@ -630,7 +630,12 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
     this.updateBonusHolders();
 
     // Update trust graph
-    this.trustGraph.applyUpdates(trustUpdates, this.state.gameId);
+    this.trustGraph.applyUpdatesWithMeta(trustUpdates, {
+      gameId: this.state.gameId,
+      round: this.state.round,
+      phase: this.state.phase,
+      timestamp: Date.now(),
+    });
     this.trustGraph.tick();
 
     // Emit trust updates
@@ -638,6 +643,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       this.emitEvent("trust.updated", {
         updates: trustUpdates,
         snapshots: this.trustGraph.getAllSnapshots(),
+        readModels: this.trustGraph.getAllReadModels(),
       }, { agents: "all", spectators: true });
     }
 
@@ -3103,11 +3109,17 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
   private applyImmediateTrustUpdates(trustUpdates: TrustUpdate[]): void {
     if (trustUpdates.length === 0) return;
 
-    this.trustGraph.applyUpdates(trustUpdates, this.state.gameId);
+    this.trustGraph.applyUpdatesWithMeta(trustUpdates, {
+      gameId: this.state.gameId,
+      round: this.state.round,
+      phase: this.state.phase,
+      timestamp: Date.now(),
+    });
     this.trustGraph.tick();
     this.emitEvent("trust.updated", {
       updates: trustUpdates,
       snapshots: this.trustGraph.getAllSnapshots(),
+      readModels: this.trustGraph.getAllReadModels(),
     }, { agents: "all", spectators: true });
   }
 

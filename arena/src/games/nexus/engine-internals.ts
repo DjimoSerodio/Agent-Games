@@ -44,9 +44,18 @@ export function finalizePostGameCommitments(ctx: any): void {
 
 export function applyImmediateTrustUpdates(ctx: any, trustUpdates: TrustUpdate[]): void {
   if (trustUpdates.length === 0) return;
-  ctx.trustGraph.applyUpdates(trustUpdates, ctx.state.gameId);
+  ctx.trustGraph.applyUpdatesWithMeta(trustUpdates, {
+    gameId: ctx.state.gameId,
+    round: ctx.state.round,
+    phase: ctx.state.phase,
+    timestamp: Date.now(),
+  });
   ctx.trustGraph.tick();
-  ctx.emitEvent("trust.updated", { updates: trustUpdates, snapshots: ctx.trustGraph.getAllSnapshots() }, { agents: "all", spectators: true });
+  ctx.emitEvent("trust.updated", {
+    updates: trustUpdates,
+    snapshots: ctx.trustGraph.getAllSnapshots(),
+    readModels: ctx.trustGraph.getAllReadModels(),
+  }, { agents: "all", spectators: true });
 }
 
 export function getVisibleCommitments(ctx: any, agentId: AgentId): CommitmentRecord[] {
