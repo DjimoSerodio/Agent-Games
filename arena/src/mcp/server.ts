@@ -64,6 +64,7 @@ export const MCP_RESOURCE_URIS = [
   "game://players",
   "game://ecosystems",
   "game://trust",
+  "game://agent-profile",
   "game://messages",
 ] as const;
 
@@ -271,6 +272,13 @@ export function createComedyMcpServer(adapter?: MCPAgentAdapter): ComedyMcpRunti
     "game://trust",
     { description: "Visible trust graph for this agent", mimeType: "application/json" },
     async (uri) => jsonResource(uri.toString(), { trust: boundAdapter.getVisibleTrustScores() }),
+  );
+
+  mcpServer.registerResource(
+    "agent-profile",
+    "game://agent-profile",
+    { description: "Current agent identity and serialized agentURI profile", mimeType: "application/json" },
+    async (uri) => jsonResource(uri.toString(), { identity: boundAdapter.getIdentityProfile() }),
   );
 
   mcpServer.registerResource(
