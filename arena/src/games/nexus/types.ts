@@ -556,6 +556,8 @@ export interface BehaviorTag {
   trustDeltaHint?: number;
 }
 
+export type CommitmentScope = "round" | "game" | "olympiad";
+
 export interface CommitmentCandidate {
   id: string;
   messageId: string;
@@ -567,6 +569,7 @@ export interface CommitmentCandidate {
   confidence: number;
   rawText: string;
   summary: string;
+  scope?: CommitmentScope;
   conditions: CommitmentCondition[];
 }
 
@@ -680,6 +683,8 @@ export interface ComedyAgentView {
   allScores: Record<AgentId, number>; // VP is public
   allInfluence: Record<AgentId, number>; // Influence is public
   trustScores: Record<AgentId, number>; // Public trust graph
+  trustDossiers: Record<AgentId, import("../../core/types.js").TrustDossier>;
+  trustProjectionByAgent: Record<AgentId, import("../../core/types.js").GraduatedTrustProjection>;
 
   // Production
   productionWheel: number[];
