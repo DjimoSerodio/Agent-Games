@@ -55,6 +55,9 @@ export function applyImmediateTrustUpdates(ctx: any, trustUpdates: TrustUpdate[]
     updates: trustUpdates,
     snapshots: ctx.trustGraph.getAllSnapshots(),
     readModels: ctx.trustGraph.getAllReadModels(),
+    dossiers: ctx.trustGraph.getAllTrustDossiers(),
+    projections: ctx.trustGraph.getAllGraduatedProjections(),
+    snapshotArtifact: ctx.trustGraph.getSnapshotArtifact(),
   }, { agents: "all", spectators: true });
 }
 

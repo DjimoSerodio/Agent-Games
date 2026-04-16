@@ -296,8 +296,12 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
 
     // Trust scores
     const trustScores: Record<AgentId, number> = {};
+    const trustDossiers: Record<AgentId, ComedyAgentView["trustDossiers"][AgentId]> = {};
+    const trustProjectionByAgent: Record<AgentId, ComedyAgentView["trustProjectionByAgent"][AgentId]> = {};
     for (const id of this.state.players) {
       trustScores[id] = this.trustGraph.getGlobalScore(id);
+      trustDossiers[id] = this.trustGraph.getTrustDossier(id);
+      trustProjectionByAgent[id] = this.trustGraph.getGraduatedProjection(id);
     }
 
     // Next 5 production numbers
@@ -340,6 +344,8 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       allScores,
       allInfluence,
       trustScores,
+      trustDossiers,
+      trustProjectionByAgent,
       productionWheel: this.state.productionWheel,
       wheelPosition: this.state.wheelPosition,
       nextProduction,
@@ -644,6 +650,9 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
         updates: trustUpdates,
         snapshots: this.trustGraph.getAllSnapshots(),
         readModels: this.trustGraph.getAllReadModels(),
+        dossiers: this.trustGraph.getAllTrustDossiers(),
+        projections: this.trustGraph.getAllGraduatedProjections(),
+        snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
       }, { agents: "all", spectators: true });
     }
 
@@ -3120,6 +3129,9 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       updates: trustUpdates,
       snapshots: this.trustGraph.getAllSnapshots(),
       readModels: this.trustGraph.getAllReadModels(),
+      dossiers: this.trustGraph.getAllTrustDossiers(),
+      projections: this.trustGraph.getAllGraduatedProjections(),
+      snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
     }, { agents: "all", spectators: true });
   }
 

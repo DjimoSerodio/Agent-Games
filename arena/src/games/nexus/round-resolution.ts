@@ -182,6 +182,9 @@ export function resolveActions(ctx: any, actions: Map<AgentId, Action[]>): Round
       updates: trustUpdates,
       snapshots: ctx.trustGraph.getAllSnapshots(),
       readModels: ctx.trustGraph.getAllReadModels(),
+      dossiers: ctx.trustGraph.getAllTrustDossiers(),
+      projections: ctx.trustGraph.getAllGraduatedProjections(),
+      snapshotArtifact: ctx.trustGraph.getSnapshotArtifact(),
     }, { agents: "all", spectators: true });
   }
 
