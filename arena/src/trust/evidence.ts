@@ -21,6 +21,8 @@ const REASON_TO_TYPE: Record<string, TrustEvidenceType> = {
   trade_not_reciprocated: "trade.not_reciprocated",
   conquest: "conquest.executed",
   aggression: "aggression.witnessed",
+  sabotage_victim: "sabotage.executed",
+  sabotage_witness: "aggression.witnessed",
   commons_collapsed: "commons.collapsed",
   crisis_co_contributor: "crisis.contributed",
   crisis_free_rider: "crisis.free_ride",
