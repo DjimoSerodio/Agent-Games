@@ -210,6 +210,70 @@ export interface TrustSnapshotArtifact {
   metadata: Record<string, unknown>;
 }
 
+export type TrustMemoryDirectness = "direct" | "indirect";
+
+export interface TrustTimelineEntry {
+  evidenceId: string;
+  timestamp: number;
+  gameId?: GameId;
+  round?: RoundId;
+  phase?: GamePhase | string;
+  type: TrustEvidenceType;
+  reasonCode?: string;
+  summary: string;
+  directness: TrustMemoryDirectness;
+  counterparties: AgentId[];
+  scope?: string;
+}
+
+export interface TrustCounterpartySummary {
+  agentId: AgentId;
+  interactions: number;
+  trustScore: number;
+  lastSeen: number | null;
+}
+
+export interface TrustDossier {
+  agentId: AgentId;
+  timeline: TrustTimelineEntry[];
+  counterparties: TrustCounterpartySummary[];
+  outstandingCommitments: number;
+  keptCommitments: number;
+  brokenCommitments: number;
+  updatedAt: number;
+}
+
+export interface GraduatedTrustAxis {
+  score: number;
+  band: string;
+}
+
+export interface AssociationRiskOverlay {
+  score: number;
+  band: "none" | "watch" | "concerning";
+  relatedAgents: AgentId[];
+  rationale: string[];
+}
+
+export interface GraduatedTrustProjection {
+  agentId: AgentId;
+  coordinationReliability: GraduatedTrustAxis;
+  commonsStewardship: GraduatedTrustAxis;
+  associationRisk: AssociationRiskOverlay;
+  inputs: {
+    completedTrades: number;
+    failedReciprocityEvents: number;
+    keptCommitments: number;
+    brokenCommitments: number;
+    sabotageEvents: number;
+    crisisContributions: number;
+    crisisFreeRideEvents: number;
+    commonsCollapseEvents: number;
+    concerningPartnerCount: number;
+  };
+  updatedAt: number;
+}
+
 // ============================================================
 // Actions (Generic)
 // ============================================================

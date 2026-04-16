@@ -11,7 +11,9 @@
 import {
   AgentId,
   GameId,
+  GraduatedTrustProjection,
   TrustEdge,
+  TrustDossier,
   TrustEvidence,
   TrustReadModel,
   TrustSnapshot,
@@ -19,6 +21,7 @@ import {
   TrustUpdate,
 } from "../core/types.js";
 import { trustUpdateToEvidence, type TrustEvidenceMeta } from "./evidence.js";
+import { buildGraduatedTrustProjection, buildTrustDossier } from "./projection.js";
 
 export interface TrustGraphConfig {
   /** Damping factor (like PageRank). 0.15 = 15% chance of jumping to pre-trusted set */
@@ -380,6 +383,22 @@ export class TrustGraph {
 
   getAllReadModels(): TrustReadModel[] {
     return Array.from(this.agents).map((id) => this.getReadModel(id));
+  }
+
+  getTrustDossier(agentId: AgentId): TrustDossier {
+    return buildTrustDossier(agentId, this.getReadModel(agentId), this.evidenceLog);
+  }
+
+  getAllTrustDossiers(): TrustDossier[] {
+    return Array.from(this.agents).map((id) => this.getTrustDossier(id));
+  }
+
+  getGraduatedProjection(agentId: AgentId): GraduatedTrustProjection {
+    return buildGraduatedTrustProjection(agentId, this.getReadModel(agentId), this.evidenceLog);
+  }
+
+  getAllGraduatedProjections(): GraduatedTrustProjection[] {
+    return Array.from(this.agents).map((id) => this.getGraduatedProjection(id));
   }
 
   getEvidenceLog(): TrustEvidence[] {
