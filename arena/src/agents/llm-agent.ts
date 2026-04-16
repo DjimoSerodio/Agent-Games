@@ -29,6 +29,7 @@ import {
   ResourceType,
   RESOURCE_NAMES,
 } from "../games/nexus/types.js";
+import { createAgentIdentity } from "../core/agent-uri.js";
 
 // ============================================================
 // Constants
@@ -200,13 +201,16 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
 
   constructor(personaPath: string, agentId: string, provider?: LLMProvider) {
     this.id = agentId;
-    this.identity = {
+    this.identity = createAgentIdentity({
       id: agentId,
       name: `LLM_${agentId.slice(0, 6)}`,
-      address: `0x${agentId.replace(/-/g, "").slice(0, 40).padEnd(40, "0")}`,
-      skillsHash: "",
-      registeredAt: Date.now(),
-    };
+      harness: {
+        kind: "llm",
+        provider: provider?.constructor?.name,
+        capabilities: ["negotiation", "actions", "reflection"],
+        operator: "local",
+      },
+    });
 
     this.persona = readFileSync(personaPath, "utf-8");
     this.provider = provider ?? createProvider();
