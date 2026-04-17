@@ -2,14 +2,13 @@
  * LLM Agent - LLM-powered agent for the Coordination Olympiad
  *
  * Supports Anthropic (Claude), Minimax (OpenAI-compatible), or any custom provider.
- * Set MINIMAX_API_KEY or ANTHROPIC_API_KEY to select the backend.
+ * Provider selection and secrets are owned by the harness/runtime layer.
  */
 
 import { readFileSync } from "fs";
 import { v4 as uuid } from "uuid";
 import {
   LLMProvider,
-  createProvider,
   ProviderTool,
   ToolCall,
 } from "./providers.js";
@@ -198,7 +197,7 @@ Public. Keeping promises builds trust. Breaking deals and sabotage erode it.
 Hidden rounds. Highest VP wins. Commons health determines prize survival.
 `;
 
-  constructor(personaPath: string, agentId: string, provider?: LLMProvider) {
+  constructor(personaPath: string, agentId: string, provider: LLMProvider) {
     this.id = agentId;
     this.identity = {
       id: agentId,
@@ -209,7 +208,7 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
     };
 
     this.persona = readFileSync(personaPath, "utf-8");
-    this.provider = provider ?? createProvider();
+    this.provider = provider;
   }
 
   // ============================================================
@@ -650,6 +649,6 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
 // Factory
 // ============================================================
 
-export function createLLMAgent(personaPath: string, agentId: string, provider?: LLMProvider): GameAgent {
+export function createLLMAgent(personaPath: string, agentId: string, provider: LLMProvider): GameAgent {
   return new LLMAgent(personaPath, agentId, provider);
 }
