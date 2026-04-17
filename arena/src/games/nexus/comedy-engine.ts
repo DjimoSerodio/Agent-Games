@@ -70,6 +70,10 @@ import {
   getStartingPositions as getWorldStartingPositions,
   projectWorldMapToHexGrid,
 } from "./world-map.js";
+import {
+  buildBehaviorMemoryByAgent,
+  buildBehaviorMemorySnapshot,
+} from "./behavior-memory.js";
 
 export class ComedyEngine extends GameEngine<ComedyGameState> {
   private static pendingPrizeCarryoverWei = 0n;
@@ -303,6 +307,12 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       trustDossiers[id] = this.trustGraph.getTrustDossier(id);
       trustProjectionByAgent[id] = this.trustGraph.getGraduatedProjection(id);
     }
+    const behaviorMemory = buildBehaviorMemorySnapshot(
+      this.state,
+      agentId,
+      trustDossiers[agentId],
+      trustProjectionByAgent[agentId],
+    );
 
     // Next 5 production numbers
     const nextProduction: number[] = [];
@@ -346,6 +356,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       trustScores,
       trustDossiers,
       trustProjectionByAgent,
+      behaviorMemory,
       productionWheel: this.state.productionWheel,
       wheelPosition: this.state.wheelPosition,
       nextProduction,
@@ -1646,6 +1657,18 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       };
     }
 
+    const trustDossiers: Record<AgentId, ComedyAgentView["trustDossiers"][AgentId]> = {};
+    const trustProjectionByAgent: Record<AgentId, ComedyAgentView["trustProjectionByAgent"][AgentId]> = {};
+    for (const id of this.state.players) {
+      trustDossiers[id] = this.trustGraph.getTrustDossier(id);
+      trustProjectionByAgent[id] = this.trustGraph.getGraduatedProjection(id);
+    }
+    const behaviorMemoryByAgent = buildBehaviorMemoryByAgent(
+      this.state,
+      trustDossiers,
+      trustProjectionByAgent,
+    );
+
     this.emitEvent("game.state_update", {
       round: this.state.round,
       phase: this.state.phase,
@@ -1692,7 +1715,22 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
         phase: attestation.phase,
         verdict: attestation.verdict,
         weight: attestation.weight,
+        detail: attestation.detail,
+        round: attestation.round,
+        accepted: attestation.accepted,
+        evidenceRefs: [...attestation.evidenceRefs],
       })),
+      contestedClaims: this.state.contestedClaims.map((claim) => ({
+        id: claim.id,
+        commitmentId: claim.commitmentId,
+        actor: claim.actor,
+        round: claim.round,
+        reason: claim.reason,
+        evidenceRefs: [...claim.evidenceRefs],
+      })),
+      behaviorTags: this.state.behaviorTags.map((tag) => ({ ...tag })),
+      payoutReceipts: this.state.payoutReceipts.map((receipt) => ({ ...receipt })),
+      behaviorMemoryByAgent,
       bonusHolders: {
         longestRoad: this.state.longestRoadHolder,
         mostInfluence: this.state.mostInfluenceHolder,

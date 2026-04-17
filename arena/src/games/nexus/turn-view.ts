@@ -1,5 +1,6 @@
 import { Action, AgentId } from "../../core/types.js";
 import { ComedyAction, ComedyAgentView, RESOURCE_NAMES } from "./types.js";
+import { buildBehaviorMemorySnapshot } from "./behavior-memory.js";
 
 export function getAgentView(ctx: any, agentId: AgentId): ComedyAgentView {
   const playerState = ctx.state.playerStates.get(agentId);
@@ -24,6 +25,12 @@ export function getAgentView(ctx: any, agentId: AgentId): ComedyAgentView {
     trustDossiers[id] = ctx.trustGraph.getTrustDossier(id);
     trustProjectionByAgent[id] = ctx.trustGraph.getGraduatedProjection(id);
   }
+  const behaviorMemory = buildBehaviorMemorySnapshot(
+    ctx.state,
+    agentId,
+    trustDossiers[agentId],
+    trustProjectionByAgent[agentId],
+  );
 
   const nextProduction: number[] = [];
   for (let i = 1; i <= 5; i++) {
@@ -63,6 +70,7 @@ export function getAgentView(ctx: any, agentId: AgentId): ComedyAgentView {
     trustScores,
     trustDossiers,
     trustProjectionByAgent,
+    behaviorMemory,
     productionWheel: ctx.state.productionWheel,
     wheelPosition: ctx.state.wheelPosition,
     nextProduction,
