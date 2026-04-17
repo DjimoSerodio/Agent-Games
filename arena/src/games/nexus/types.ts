@@ -781,6 +781,23 @@ export interface TournamentState {
   cumulativeScores: Record<AgentId, number>; // Cumulative across session
   currentGameId: GameId | null;
   isActive: boolean;
+  latestTrustSnapshot: TrustSnapshotArtifact | null;
+  trustSnapshotHistory: TrustSnapshotArtifact[];
+}
+
+export interface TournamentTrustPortabilityPackage {
+  sessionId: string;
+  gamesPlayed: number;
+  cumulativeScores: Record<AgentId, number>;
+  trustGraphExport: {
+    agents: AgentId[];
+    edges: import("../../core/types.js").TrustEdge[];
+    globalScores: Record<AgentId, number>;
+    evidenceLog: import("../../core/types.js").TrustEvidence[];
+    currentTime: number;
+  };
+  latestTrustSnapshot: TrustSnapshotArtifact | null;
+  trustSnapshotHistory: TrustSnapshotArtifact[];
 }
 
 export interface TournamentConfig {
@@ -819,3 +836,4 @@ export interface PromiseRecord {
   fulfilled: boolean | null; // null = pending
   detectedInRound: number | null;
 }
+import type { TrustSnapshotArtifact } from "../../core/types.js";
