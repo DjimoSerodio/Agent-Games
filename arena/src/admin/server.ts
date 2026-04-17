@@ -337,6 +337,20 @@ export class AdminServer {
       });
     });
 
+    this.app.get("/api/behavior-memory", (req, res) => {
+      const state = this.currentGameState as any;
+      if (!state?.behaviorMemoryByAgent) {
+        res.status(404).json({ error: "Behavior memory not available yet" });
+        return;
+      }
+      const agentId = req.query.agentId as string | undefined;
+      if (agentId) {
+        res.json({ agentId, behaviorMemory: state.behaviorMemoryByAgent[agentId] ?? null });
+        return;
+      }
+      res.json({ behaviorMemoryByAgent: state.behaviorMemoryByAgent });
+    });
+
     // Pause / resume controls
     this.app.post("/api/pause", (_req, res) => {
       this.paused = true;

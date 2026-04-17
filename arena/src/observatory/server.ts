@@ -283,6 +283,26 @@ export class ObservatoryServer {
       res.json({ events });
     });
 
+    this.app.get("/api/games/:gameId/behavior-memory", (req, res) => {
+      const events = this.eventBus.getHistory({
+        gameId: req.params.gameId,
+        spectator: true,
+        types: ["game.state_update"],
+      });
+      if (events.length === 0) {
+        res.status(404).json({ error: "Game not found or no state updates yet" });
+        return;
+      }
+      const latestState = events[events.length - 1].data as any;
+      const memory = latestState?.behaviorMemoryByAgent ?? {};
+      const agentId = req.query.agentId as string | undefined;
+      if (agentId) {
+        res.json({ agentId, behaviorMemory: memory[agentId] ?? null });
+        return;
+      }
+      res.json({ behaviorMemoryByAgent: memory });
+    });
+
     // Commons-health and prize-slash activity
     this.app.get("/api/games/:gameId/commons-health", (req, res) => {
       const slashEvents = this.eventBus.getHistory({
