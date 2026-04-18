@@ -1,5 +1,6 @@
 import { Action, AgentId } from "../../core/types.js";
 import { ComedyAction, ComedyAgentView, RESOURCE_NAMES } from "./types.js";
+import { buildBehaviorMemorySnapshot } from "./behavior-memory.js";
 
 export function getAgentView(ctx: any, agentId: AgentId): ComedyAgentView {
   const playerState = ctx.state.playerStates.get(agentId);
@@ -17,7 +18,20 @@ export function getAgentView(ctx: any, agentId: AgentId): ComedyAgentView {
   }
 
   const trustScores: Record<AgentId, number> = {};
+  const trustDossiers: Record<AgentId, ComedyAgentView["trustDossiers"][AgentId]> = {};
+  const trustProjectionByAgent: Record<AgentId, ComedyAgentView["trustProjectionByAgent"][AgentId]> = {};
   for (const id of ctx.state.players) trustScores[id] = ctx.trustGraph.getGlobalScore(id);
+  for (const id of ctx.state.players) {
+    trustDossiers[id] = ctx.trustGraph.getTrustDossier(id);
+    trustProjectionByAgent[id] = ctx.trustGraph.getGraduatedProjection(id);
+  }
+  const behaviorMemory = buildBehaviorMemorySnapshot(
+    ctx.state,
+    agentId,
+    trustDossiers[agentId],
+    trustProjectionByAgent[agentId],
+  );
+  const trustSnapshotArtifact = ctx.trustGraph.getSnapshotArtifact();
 
   const nextProduction: number[] = [];
   for (let i = 1; i <= 5; i++) {
@@ -55,6 +69,10 @@ export function getAgentView(ctx: any, agentId: AgentId): ComedyAgentView {
     allScores,
     allInfluence,
     trustScores,
+    trustDossiers,
+    trustProjectionByAgent,
+    trustSnapshotArtifact,
+    behaviorMemory,
     productionWheel: ctx.state.productionWheel,
     wheelPosition: ctx.state.wheelPosition,
     nextProduction,

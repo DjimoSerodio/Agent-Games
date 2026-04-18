@@ -70,6 +70,10 @@ import {
   getStartingPositions as getWorldStartingPositions,
   projectWorldMapToHexGrid,
 } from "./world-map.js";
+import {
+  buildBehaviorMemoryByAgent,
+  buildBehaviorMemorySnapshot,
+} from "./behavior-memory.js";
 
 export class ComedyEngine extends GameEngine<ComedyGameState> {
   private static pendingPrizeCarryoverWei = 0n;
@@ -296,9 +300,20 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
 
     // Trust scores
     const trustScores: Record<AgentId, number> = {};
+    const trustDossiers: Record<AgentId, ComedyAgentView["trustDossiers"][AgentId]> = {};
+    const trustProjectionByAgent: Record<AgentId, ComedyAgentView["trustProjectionByAgent"][AgentId]> = {};
     for (const id of this.state.players) {
       trustScores[id] = this.trustGraph.getGlobalScore(id);
+      trustDossiers[id] = this.trustGraph.getTrustDossier(id);
+      trustProjectionByAgent[id] = this.trustGraph.getGraduatedProjection(id);
     }
+    const behaviorMemory = buildBehaviorMemorySnapshot(
+      this.state,
+      agentId,
+      trustDossiers[agentId],
+      trustProjectionByAgent[agentId],
+    );
+    const trustSnapshotArtifact = this.trustGraph.getSnapshotArtifact();
 
     // Next 5 production numbers
     const nextProduction: number[] = [];
@@ -340,6 +355,10 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       allScores,
       allInfluence,
       trustScores,
+      trustDossiers,
+      trustProjectionByAgent,
+      trustSnapshotArtifact,
+      behaviorMemory,
       productionWheel: this.state.productionWheel,
       wheelPosition: this.state.wheelPosition,
       nextProduction,
@@ -630,7 +649,12 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
     this.updateBonusHolders();
 
     // Update trust graph
-    this.trustGraph.applyUpdates(trustUpdates, this.state.gameId);
+    this.trustGraph.applyUpdatesWithMeta(trustUpdates, {
+      gameId: this.state.gameId,
+      round: this.state.round,
+      phase: this.state.phase,
+      timestamp: Date.now(),
+    });
     this.trustGraph.tick();
 
     // Emit trust updates
@@ -638,6 +662,10 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       this.emitEvent("trust.updated", {
         updates: trustUpdates,
         snapshots: this.trustGraph.getAllSnapshots(),
+        readModels: this.trustGraph.getAllReadModels(),
+        dossiers: this.trustGraph.getAllTrustDossiers(),
+        projections: this.trustGraph.getAllGraduatedProjections(),
+        snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
       }, { agents: "all", spectators: true });
     }
 
@@ -1631,6 +1659,18 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       };
     }
 
+    const trustDossiers: Record<AgentId, ComedyAgentView["trustDossiers"][AgentId]> = {};
+    const trustProjectionByAgent: Record<AgentId, ComedyAgentView["trustProjectionByAgent"][AgentId]> = {};
+    for (const id of this.state.players) {
+      trustDossiers[id] = this.trustGraph.getTrustDossier(id);
+      trustProjectionByAgent[id] = this.trustGraph.getGraduatedProjection(id);
+    }
+    const behaviorMemoryByAgent = buildBehaviorMemoryByAgent(
+      this.state,
+      trustDossiers,
+      trustProjectionByAgent,
+    );
+
     this.emitEvent("game.state_update", {
       round: this.state.round,
       phase: this.state.phase,
@@ -1677,7 +1717,22 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
         phase: attestation.phase,
         verdict: attestation.verdict,
         weight: attestation.weight,
+        detail: attestation.detail,
+        round: attestation.round,
+        accepted: attestation.accepted,
+        evidenceRefs: [...attestation.evidenceRefs],
       })),
+      contestedClaims: this.state.contestedClaims.map((claim) => ({
+        id: claim.id,
+        commitmentId: claim.commitmentId,
+        actor: claim.actor,
+        round: claim.round,
+        reason: claim.reason,
+        evidenceRefs: [...claim.evidenceRefs],
+      })),
+      behaviorTags: this.state.behaviorTags.map((tag) => ({ ...tag })),
+      payoutReceipts: this.state.payoutReceipts.map((receipt) => ({ ...receipt })),
+      behaviorMemoryByAgent,
       bonusHolders: {
         longestRoad: this.state.longestRoadHolder,
         mostInfluence: this.state.mostInfluenceHolder,
@@ -3103,11 +3158,20 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
   private applyImmediateTrustUpdates(trustUpdates: TrustUpdate[]): void {
     if (trustUpdates.length === 0) return;
 
-    this.trustGraph.applyUpdates(trustUpdates, this.state.gameId);
+    this.trustGraph.applyUpdatesWithMeta(trustUpdates, {
+      gameId: this.state.gameId,
+      round: this.state.round,
+      phase: this.state.phase,
+      timestamp: Date.now(),
+    });
     this.trustGraph.tick();
     this.emitEvent("trust.updated", {
       updates: trustUpdates,
       snapshots: this.trustGraph.getAllSnapshots(),
+      readModels: this.trustGraph.getAllReadModels(),
+      dossiers: this.trustGraph.getAllTrustDossiers(),
+      projections: this.trustGraph.getAllGraduatedProjections(),
+      snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
     }, { agents: "all", spectators: true });
   }
 

@@ -4,6 +4,7 @@ import {
   CommitmentCandidate,
   CommitmentCondition,
   CommitmentRecord,
+  CommitmentScope,
   ContestedClaim,
   ResolutionStatus,
   ComedyGameState,
@@ -22,6 +23,7 @@ export function detectCommitmentInMessage(
   const conditions = extractCommitmentConditions(lower, message, round, hasActiveCrisis);
   const summary = message.content.trim().slice(0, 160);
   const counterparties = message.recipient === "broadcast" ? [] : [message.recipient as AgentId];
+  const scope = inferCommitmentScope(lower, conditions);
 
   return {
     id: `candidate-${counter}`,
@@ -34,8 +36,19 @@ export function detectCommitmentInMessage(
     confidence: estimateCommitmentConfidence(type, lower),
     rawText: message.content,
     summary,
+    scope,
     conditions,
   };
+}
+
+export function inferCommitmentScope(lower: string, conditions: CommitmentCondition[]): CommitmentScope {
+  if (/(olympiad|tournament|next game|later game|future game|across games|after this game)/.test(lower)) {
+    return "olympiad";
+  }
+  if (conditions.some((item) => item.type === "by_round") || /\bthis round\b|\bnext round\b/.test(lower)) {
+    return "round";
+  }
+  return "game";
 }
 
 export function parseAttestationMessage(lower: string): { phase: "existence" | "fulfillment"; verdict: AttestationVerdict } | null {
