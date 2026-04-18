@@ -31,6 +31,7 @@ export function getAgentView(ctx: any, agentId: AgentId): ComedyAgentView {
     trustDossiers[agentId],
     trustProjectionByAgent[agentId],
   );
+  const trustSnapshotArtifact = ctx.trustGraph.getSnapshotArtifact();
 
   const nextProduction: number[] = [];
   for (let i = 1; i <= 5; i++) {
@@ -70,6 +71,7 @@ export function getAgentView(ctx: any, agentId: AgentId): ComedyAgentView {
     trustScores,
     trustDossiers,
     trustProjectionByAgent,
+    trustSnapshotArtifact,
     behaviorMemory,
     productionWheel: ctx.state.productionWheel,
     wheelPosition: ctx.state.wheelPosition,

@@ -730,6 +730,7 @@ export interface ComedyAgentView {
   trustScores: Record<AgentId, number>; // Public trust graph
   trustDossiers: Record<AgentId, import("../../core/types.js").TrustDossier>;
   trustProjectionByAgent: Record<AgentId, import("../../core/types.js").GraduatedTrustProjection>;
+  trustSnapshotArtifact: import("../../core/types.js").TrustSnapshotArtifact;
   behaviorMemory: BehaviorMemorySnapshot;
 
   // Production

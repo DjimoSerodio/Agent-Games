@@ -313,6 +313,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       trustDossiers[agentId],
       trustProjectionByAgent[agentId],
     );
+    const trustSnapshotArtifact = this.trustGraph.getSnapshotArtifact();
 
     // Next 5 production numbers
     const nextProduction: number[] = [];
@@ -356,6 +357,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       trustScores,
       trustDossiers,
       trustProjectionByAgent,
+      trustSnapshotArtifact,
       behaviorMemory,
       productionWheel: this.state.productionWheel,
       wheelPosition: this.state.wheelPosition,
