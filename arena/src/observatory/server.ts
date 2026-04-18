@@ -131,7 +131,13 @@ export class ObservatoryServer {
       case "get_trust_snapshots":
         this.sendToSpectator(spectatorId, {
           type: "trust_snapshots",
-          data: this.trustGraph.getAllSnapshots(),
+          data: {
+            snapshots: this.trustGraph.getAllSnapshots(),
+            readModels: this.trustGraph.getAllReadModels(),
+            dossiers: this.trustGraph.getAllTrustDossiers(),
+            projections: this.trustGraph.getAllGraduatedProjections(),
+            snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
+          },
         });
         break;
     }
@@ -329,12 +335,21 @@ export class ObservatoryServer {
     });
 
     this.app.get("/api/trust/snapshots", (_, res) => {
-      res.json(this.trustGraph.getAllSnapshots());
+      res.json({
+        snapshots: this.trustGraph.getAllSnapshots(),
+        readModels: this.trustGraph.getAllReadModels(),
+        dossiers: this.trustGraph.getAllTrustDossiers(),
+        projections: this.trustGraph.getAllGraduatedProjections(),
+        snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
+      });
     });
 
     this.app.get("/api/trust/agent/:agentId", (req, res) => {
       const snapshot = this.trustGraph.getSnapshot(req.params.agentId);
-      res.json(snapshot);
+      const readModel = this.trustGraph.getReadModel(req.params.agentId);
+      const dossier = this.trustGraph.getTrustDossier(req.params.agentId);
+      const projection = this.trustGraph.getGraduatedProjection(req.params.agentId);
+      res.json({ snapshot, readModel, dossier, projection });
     });
 
     // Prediction markets (placeholder)

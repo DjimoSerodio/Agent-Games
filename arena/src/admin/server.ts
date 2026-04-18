@@ -194,6 +194,10 @@ export class AdminServer {
           data: {
             matrix: this.trustGraph.getTrustMatrix(),
             snapshots: this.trustGraph.getAllSnapshots(),
+            readModels: this.trustGraph.getAllReadModels(),
+            dossiers: this.trustGraph.getAllTrustDossiers(),
+            projections: this.trustGraph.getAllGraduatedProjections(),
+            snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
             exported: this.trustGraph.export(),
           },
         });
@@ -325,6 +329,10 @@ export class AdminServer {
       res.json({
         matrix: this.trustGraph.getTrustMatrix(),
         snapshots: this.trustGraph.getAllSnapshots(),
+        readModels: this.trustGraph.getAllReadModels(),
+        dossiers: this.trustGraph.getAllTrustDossiers(),
+        projections: this.trustGraph.getAllGraduatedProjections(),
+        snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
         exported: this.trustGraph.export(),
       });
     });

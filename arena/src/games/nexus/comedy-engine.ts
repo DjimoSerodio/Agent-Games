@@ -296,8 +296,12 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
 
     // Trust scores
     const trustScores: Record<AgentId, number> = {};
+    const trustDossiers: Record<AgentId, ComedyAgentView["trustDossiers"][AgentId]> = {};
+    const trustProjectionByAgent: Record<AgentId, ComedyAgentView["trustProjectionByAgent"][AgentId]> = {};
     for (const id of this.state.players) {
       trustScores[id] = this.trustGraph.getGlobalScore(id);
+      trustDossiers[id] = this.trustGraph.getTrustDossier(id);
+      trustProjectionByAgent[id] = this.trustGraph.getGraduatedProjection(id);
     }
 
     // Next 5 production numbers
@@ -340,6 +344,8 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       allScores,
       allInfluence,
       trustScores,
+      trustDossiers,
+      trustProjectionByAgent,
       productionWheel: this.state.productionWheel,
       wheelPosition: this.state.wheelPosition,
       nextProduction,
@@ -630,7 +636,12 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
     this.updateBonusHolders();
 
     // Update trust graph
-    this.trustGraph.applyUpdates(trustUpdates, this.state.gameId);
+    this.trustGraph.applyUpdatesWithMeta(trustUpdates, {
+      gameId: this.state.gameId,
+      round: this.state.round,
+      phase: this.state.phase,
+      timestamp: Date.now(),
+    });
     this.trustGraph.tick();
 
     // Emit trust updates
@@ -638,6 +649,10 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       this.emitEvent("trust.updated", {
         updates: trustUpdates,
         snapshots: this.trustGraph.getAllSnapshots(),
+        readModels: this.trustGraph.getAllReadModels(),
+        dossiers: this.trustGraph.getAllTrustDossiers(),
+        projections: this.trustGraph.getAllGraduatedProjections(),
+        snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
       }, { agents: "all", spectators: true });
     }
 
@@ -3103,11 +3118,20 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
   private applyImmediateTrustUpdates(trustUpdates: TrustUpdate[]): void {
     if (trustUpdates.length === 0) return;
 
-    this.trustGraph.applyUpdates(trustUpdates, this.state.gameId);
+    this.trustGraph.applyUpdatesWithMeta(trustUpdates, {
+      gameId: this.state.gameId,
+      round: this.state.round,
+      phase: this.state.phase,
+      timestamp: Date.now(),
+    });
     this.trustGraph.tick();
     this.emitEvent("trust.updated", {
       updates: trustUpdates,
       snapshots: this.trustGraph.getAllSnapshots(),
+      readModels: this.trustGraph.getAllReadModels(),
+      dossiers: this.trustGraph.getAllTrustDossiers(),
+      projections: this.trustGraph.getAllGraduatedProjections(),
+      snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
     }, { agents: "all", spectators: true });
   }
 
