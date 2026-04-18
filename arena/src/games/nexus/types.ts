@@ -556,6 +556,53 @@ export interface BehaviorTag {
   trustDeltaHint?: number;
 }
 
+export interface BehaviorMemoryObligation {
+  id: string;
+  type: CommitmentType;
+  promisor: AgentId;
+  counterparties: AgentId[];
+  summary: string;
+  scope?: CommitmentScope;
+  resolutionStatus: ResolutionStatus;
+  dueByRound: number | null;
+  resolvedRound: number | null;
+  contested: boolean;
+  payoutShareBps: number | null;
+  behaviorTags: BehaviorTagKind[];
+}
+
+export interface BehaviorMemoryOutcome {
+  id: string;
+  kind: "evidence" | "behavior_tag" | "payout_receipt";
+  sourceType: string;
+  round: number;
+  actorId?: AgentId;
+  counterparties: AgentId[];
+  summary: string;
+  refs: string[];
+}
+
+export interface BehaviorMemoryRelation {
+  kind: "counterparty" | "alliance" | "contest" | "association_risk";
+  primaryAgentId: AgentId;
+  secondaryAgentId?: AgentId;
+  round?: number;
+  summary: string;
+  strength?: number;
+  refs: string[];
+}
+
+export interface BehaviorMemorySnapshot {
+  agentId?: AgentId;
+  obligations: BehaviorMemoryObligation[];
+  outcomes: BehaviorMemoryOutcome[];
+  attestations: AttestationRecord[];
+  relations: BehaviorMemoryRelation[];
+  updatedAt: number;
+}
+
+export type CommitmentScope = "round" | "game" | "olympiad";
+
 export interface CommitmentCandidate {
   id: string;
   messageId: string;
@@ -567,6 +614,7 @@ export interface CommitmentCandidate {
   confidence: number;
   rawText: string;
   summary: string;
+  scope?: CommitmentScope;
   conditions: CommitmentCondition[];
 }
 
@@ -680,6 +728,9 @@ export interface ComedyAgentView {
   allScores: Record<AgentId, number>; // VP is public
   allInfluence: Record<AgentId, number>; // Influence is public
   trustScores: Record<AgentId, number>; // Public trust graph
+  trustDossiers: Record<AgentId, import("../../core/types.js").TrustDossier>;
+  trustProjectionByAgent: Record<AgentId, import("../../core/types.js").GraduatedTrustProjection>;
+  behaviorMemory: BehaviorMemorySnapshot;
 
   // Production
   productionWheel: number[];

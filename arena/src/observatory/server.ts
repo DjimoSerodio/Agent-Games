@@ -131,7 +131,13 @@ export class ObservatoryServer {
       case "get_trust_snapshots":
         this.sendToSpectator(spectatorId, {
           type: "trust_snapshots",
-          data: this.trustGraph.getAllSnapshots(),
+          data: {
+            snapshots: this.trustGraph.getAllSnapshots(),
+            readModels: this.trustGraph.getAllReadModels(),
+            dossiers: this.trustGraph.getAllTrustDossiers(),
+            projections: this.trustGraph.getAllGraduatedProjections(),
+            snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
+          },
         });
         break;
     }
@@ -277,6 +283,26 @@ export class ObservatoryServer {
       res.json({ events });
     });
 
+    this.app.get("/api/games/:gameId/behavior-memory", (req, res) => {
+      const events = this.eventBus.getHistory({
+        gameId: req.params.gameId,
+        spectator: true,
+        types: ["game.state_update"],
+      });
+      if (events.length === 0) {
+        res.status(404).json({ error: "Game not found or no state updates yet" });
+        return;
+      }
+      const latestState = events[events.length - 1].data as any;
+      const memory = latestState?.behaviorMemoryByAgent ?? {};
+      const agentId = req.query.agentId as string | undefined;
+      if (agentId) {
+        res.json({ agentId, behaviorMemory: memory[agentId] ?? null });
+        return;
+      }
+      res.json({ behaviorMemoryByAgent: memory });
+    });
+
     // Commons-health and prize-slash activity
     this.app.get("/api/games/:gameId/commons-health", (req, res) => {
       const slashEvents = this.eventBus.getHistory({
@@ -329,12 +355,21 @@ export class ObservatoryServer {
     });
 
     this.app.get("/api/trust/snapshots", (_, res) => {
-      res.json(this.trustGraph.getAllSnapshots());
+      res.json({
+        snapshots: this.trustGraph.getAllSnapshots(),
+        readModels: this.trustGraph.getAllReadModels(),
+        dossiers: this.trustGraph.getAllTrustDossiers(),
+        projections: this.trustGraph.getAllGraduatedProjections(),
+        snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
+      });
     });
 
     this.app.get("/api/trust/agent/:agentId", (req, res) => {
       const snapshot = this.trustGraph.getSnapshot(req.params.agentId);
-      res.json(snapshot);
+      const readModel = this.trustGraph.getReadModel(req.params.agentId);
+      const dossier = this.trustGraph.getTrustDossier(req.params.agentId);
+      const projection = this.trustGraph.getGraduatedProjection(req.params.agentId);
+      res.json({ snapshot, readModel, dossier, projection });
     });
 
     // Prediction markets (placeholder)

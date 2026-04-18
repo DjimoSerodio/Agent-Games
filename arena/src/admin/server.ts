@@ -194,6 +194,10 @@ export class AdminServer {
           data: {
             matrix: this.trustGraph.getTrustMatrix(),
             snapshots: this.trustGraph.getAllSnapshots(),
+            readModels: this.trustGraph.getAllReadModels(),
+            dossiers: this.trustGraph.getAllTrustDossiers(),
+            projections: this.trustGraph.getAllGraduatedProjections(),
+            snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
             exported: this.trustGraph.export(),
           },
         });
@@ -325,8 +329,26 @@ export class AdminServer {
       res.json({
         matrix: this.trustGraph.getTrustMatrix(),
         snapshots: this.trustGraph.getAllSnapshots(),
+        readModels: this.trustGraph.getAllReadModels(),
+        dossiers: this.trustGraph.getAllTrustDossiers(),
+        projections: this.trustGraph.getAllGraduatedProjections(),
+        snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
         exported: this.trustGraph.export(),
       });
+    });
+
+    this.app.get("/api/behavior-memory", (req, res) => {
+      const state = this.currentGameState as any;
+      if (!state?.behaviorMemoryByAgent) {
+        res.status(404).json({ error: "Behavior memory not available yet" });
+        return;
+      }
+      const agentId = req.query.agentId as string | undefined;
+      if (agentId) {
+        res.json({ agentId, behaviorMemory: state.behaviorMemoryByAgent[agentId] ?? null });
+        return;
+      }
+      res.json({ behaviorMemoryByAgent: state.behaviorMemoryByAgent });
     });
 
     // Pause / resume controls

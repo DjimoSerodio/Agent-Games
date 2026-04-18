@@ -123,6 +123,157 @@ export interface TrustUpdate {
   reason: string; // "kept_promise", "broke_promise", "crisis_contribution", etc.
 }
 
+export type TrustEvidenceType =
+  | "trade.completed"
+  | "trade.not_reciprocated"
+  | "sabotage.executed"
+  | "conquest.executed"
+  | "aggression.witnessed"
+  | "commons.collapsed"
+  | "crisis.contributed"
+  | "crisis.free_ride"
+  | "commitment.resolved"
+  | "attestation.promise_fulfilled"
+  | "attestation.promise_breached"
+  | "attestation.contested"
+  | "trust.delta";
+
+export interface TrustEvidenceRefs {
+  commitmentId?: string;
+  attestationId?: string;
+  tradeId?: string;
+  actionId?: string;
+  evidenceIds?: string[];
+}
+
+export interface TrustEvidence {
+  id: string;
+  gameId?: GameId;
+  round?: RoundId;
+  phase?: GamePhase | string;
+  timestamp: number;
+  type: TrustEvidenceType;
+  actor?: AgentId;
+  subject?: AgentId;
+  counterparty?: AgentId;
+  reasonCode?: string;
+  weightHint?: number;
+  refs: TrustEvidenceRefs;
+  payload: Record<string, unknown>;
+}
+
+export interface TrustReadReason {
+  reason: string;
+  gameId?: GameId;
+  round?: RoundId;
+  timestamp: number;
+}
+
+export interface TrustReadModel {
+  agentId: AgentId;
+  globalScore: number;
+  directScores: Record<AgentId, number>;
+  rank: number;
+  gamesPlayed: number;
+  keptCommitments: number;
+  brokenCommitments: number;
+  successfulTrades: number;
+  failedReciprocityEvents: number;
+  sabotageEvents: number;
+  crisisContributions: number;
+  recentReasons: TrustReadReason[];
+}
+
+export interface TrustSnapshotArtifact {
+  snapshotId: string;
+  sessionId?: string;
+  timestamp: number;
+  reducerVersion: string;
+  gamesIncluded: GameId[];
+  scores: Array<{
+    agentId: AgentId;
+    globalScore: number;
+    rank: number;
+    gamesPlayed: number;
+    keptCommitments: number;
+    brokenCommitments: number;
+    successfulTrades: number;
+    failedReciprocityEvents: number;
+    sabotageEvents: number;
+    crisisContributions: number;
+    recentReasons: TrustReadReason[];
+  }>;
+  evidenceRange: {
+    fromId: string | null;
+    toId: string | null;
+  };
+  metadata: Record<string, unknown>;
+}
+
+export type TrustMemoryDirectness = "direct" | "indirect";
+
+export interface TrustTimelineEntry {
+  evidenceId: string;
+  timestamp: number;
+  gameId?: GameId;
+  round?: RoundId;
+  phase?: GamePhase | string;
+  type: TrustEvidenceType;
+  reasonCode?: string;
+  summary: string;
+  directness: TrustMemoryDirectness;
+  counterparties: AgentId[];
+  scope?: string;
+}
+
+export interface TrustCounterpartySummary {
+  agentId: AgentId;
+  interactions: number;
+  trustScore: number;
+  lastSeen: number | null;
+}
+
+export interface TrustDossier {
+  agentId: AgentId;
+  timeline: TrustTimelineEntry[];
+  counterparties: TrustCounterpartySummary[];
+  outstandingCommitments: number;
+  keptCommitments: number;
+  brokenCommitments: number;
+  updatedAt: number;
+}
+
+export interface GraduatedTrustAxis {
+  score: number;
+  band: string;
+}
+
+export interface AssociationRiskOverlay {
+  score: number;
+  band: "none" | "watch" | "concerning";
+  relatedAgents: AgentId[];
+  rationale: string[];
+}
+
+export interface GraduatedTrustProjection {
+  agentId: AgentId;
+  coordinationReliability: GraduatedTrustAxis;
+  commonsStewardship: GraduatedTrustAxis;
+  associationRisk: AssociationRiskOverlay;
+  inputs: {
+    completedTrades: number;
+    failedReciprocityEvents: number;
+    keptCommitments: number;
+    brokenCommitments: number;
+    sabotageEvents: number;
+    crisisContributions: number;
+    crisisFreeRideEvents: number;
+    commonsCollapseEvents: number;
+    concerningPartnerCount: number;
+  };
+  updatedAt: number;
+}
+
 // ============================================================
 // Actions (Generic)
 // ============================================================
