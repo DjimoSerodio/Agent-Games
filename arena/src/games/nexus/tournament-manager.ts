@@ -9,8 +9,8 @@
  * - Cross-game reputation via TrustGraph integration
  */
 
-import { AgentId, GameId } from "../../core/types.js";
-import { TournamentState, TournamentConfig, DEFAULT_TOURNAMENT_CONFIG } from "./types.js";
+import { AgentId, GameId, TrustSnapshotArtifact } from "../../core/types.js";
+import { TournamentState, TournamentConfig, TournamentTrustPortabilityPackage, DEFAULT_TOURNAMENT_CONFIG } from "./types.js";
 import { TrustGraph } from "../../trust/trust-graph.js";
 import { v4 as uuid } from "uuid";
 
@@ -30,6 +30,8 @@ export class TournamentManager {
       cumulativeScores: {},
       currentGameId: null,
       isActive: true,
+      latestTrustSnapshot: null,
+      trustSnapshotHistory: [],
     };
   }
 
@@ -56,7 +58,20 @@ export class TournamentManager {
     }
   }
 
-  recordGameResult(scores: Record<AgentId, number>, prizePoolWei: bigint): boolean {
+  hydrateFromPortability(pkg: TournamentTrustPortabilityPackage): void {
+    this.state.sessionId = pkg.sessionId;
+    this.state.gamesPlayed = pkg.gamesPlayed;
+    this.state.cumulativeScores = { ...pkg.cumulativeScores };
+    this.state.latestTrustSnapshot = pkg.latestTrustSnapshot ? { ...pkg.latestTrustSnapshot } : null;
+    this.state.trustSnapshotHistory = pkg.trustSnapshotHistory.map((snapshot) => ({ ...snapshot }));
+    this.trustGraph.import(pkg.trustGraphExport);
+  }
+
+  recordGameResult(
+    scores: Record<AgentId, number>,
+    prizePoolWei: bigint,
+    trustSnapshot?: TrustSnapshotArtifact,
+  ): boolean {
     this.state.gamesPlayed++;
     
     // Update cumulative scores
@@ -67,6 +82,11 @@ export class TournamentManager {
     
     // Add to tournament prize pool
     this.state.tournamentPrizePool += prizePoolWei;
+
+    if (trustSnapshot) {
+      this.state.latestTrustSnapshot = { ...trustSnapshot };
+      this.state.trustSnapshotHistory.push({ ...trustSnapshot });
+    }
     
     // Determine if tournament continues (geometric distribution)
     const continueTournament = Math.random() < this.state.continuationProbability;
@@ -88,6 +108,14 @@ export class TournamentManager {
 
   getSessionId(): string {
     return this.state.sessionId;
+  }
+
+  getLatestTrustSnapshot(): TrustSnapshotArtifact | null {
+    return this.state.latestTrustSnapshot ? { ...this.state.latestTrustSnapshot } : null;
+  }
+
+  getTrustSnapshotHistory(): TrustSnapshotArtifact[] {
+    return this.state.trustSnapshotHistory.map((snapshot) => ({ ...snapshot }));
   }
 
   getCumulativeScores(): Record<AgentId, number> {
@@ -138,7 +166,22 @@ export class TournamentManager {
     return this.trustGraph.getTrustMatrix();
   }
 
-  static create(trustGraph?: TrustGraph): TournamentManager {
-    return new TournamentManager({}, trustGraph);
+  exportPortabilityPackage(): TournamentTrustPortabilityPackage {
+    return {
+      sessionId: this.state.sessionId,
+      gamesPlayed: this.state.gamesPlayed,
+      cumulativeScores: { ...this.state.cumulativeScores },
+      trustGraphExport: this.trustGraph.export(),
+      latestTrustSnapshot: this.state.latestTrustSnapshot ? { ...this.state.latestTrustSnapshot } : null,
+      trustSnapshotHistory: this.state.trustSnapshotHistory.map((snapshot) => ({ ...snapshot })),
+    };
+  }
+
+  static create(trustGraph?: TrustGraph, portabilityPackage?: TournamentTrustPortabilityPackage): TournamentManager {
+    const manager = new TournamentManager({}, trustGraph);
+    if (portabilityPackage) {
+      manager.hydrateFromPortability(portabilityPackage);
+    }
+    return manager;
   }
 }
