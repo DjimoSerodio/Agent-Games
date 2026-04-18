@@ -21,6 +21,9 @@ import { EventBus } from "../core/event-bus.js";
 import { ArenaEvent, GameId } from "../core/types.js";
 import { TrustGraph } from "../trust/trust-graph.js";
 import { createComedyWorldMap } from "../games/nexus/world-map.js";
+import { createProvider, type LLMProvider } from "../agents/providers.js";
+import { LLMAgent } from "../agents/llm-agent.js";
+import type { AgentLogEntry } from "../admin/agent-log.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +34,15 @@ interface SpectatorConnection {
   connectedAt: number;
 }
 
+type SimulationAgentType = "simple" | "llm";
+
+const DEFAULT_LLM_PERSONAS = [
+  { name: "Alice", path: path.resolve(__dirname, "../../personas/alice-cooperator.md") },
+  { name: "Bob", path: path.resolve(__dirname, "../../personas/bob-strategist.md") },
+  { name: "Carol", path: path.resolve(__dirname, "../../personas/carol-opportunist.md") },
+  { name: "Dave", path: path.resolve(__dirname, "../../personas/dave-builder.md") },
+];
+
 export class ObservatoryServer {
   private app: express.Application;
   private wss: WebSocketServer | null = null;
@@ -40,10 +52,19 @@ export class ObservatoryServer {
   private spectators: Map<string, SpectatorConnection> = new Map();
   private nextId = 0;
   private simulationRunning = false;
+  private onAgentLog?: (entry: AgentLogEntry) => void;
+  private pauseGate?: () => Promise<void>;
 
-  constructor(eventBus: EventBus, trustGraph: TrustGraph) {
+  constructor(
+    eventBus: EventBus,
+    trustGraph: TrustGraph,
+    onAgentLog?: (entry: AgentLogEntry) => void,
+    pauseGate?: () => Promise<void>,
+  ) {
     this.eventBus = eventBus;
     this.trustGraph = trustGraph;
+    this.onAgentLog = onAgentLog;
+    this.pauseGate = pauseGate;
     this.app = express();
     this.setupRoutes();
     this.subscribeToEvents();
@@ -218,18 +239,42 @@ export class ObservatoryServer {
     });
 
     // Trigger a simulation
-    this.app.post("/api/simulate", async (_, res) => {
+    this.app.post("/api/simulate", async (req, res) => {
       if (this.simulationRunning) {
         res.json({ ok: false, error: "Simulation already running" });
         return;
       }
+
+      const requestedType = req.body?.agentType;
+      const agentType: SimulationAgentType = requestedType === "llm" ? "llm" : "simple";
+
+      let provider: LLMProvider | undefined;
+      if (agentType === "llm") {
+        try {
+          provider = createProvider();
+        } catch (err) {
+          res.json({
+            ok: false,
+            error: err instanceof Error ? err.message : "LLM provider not configured",
+          });
+          return;
+        }
+      }
+
       this.simulationRunning = true;
-      res.json({ ok: true, message: "Simulation starting..." });
+      res.json({
+        ok: true,
+        agentType,
+        message:
+          agentType === "llm"
+            ? `MiniMax match starting with ${provider?.getModels().smart || "configured model"}...`
+            : "Simulation starting...",
+      });
 
       // Run simulation asynchronously (import dynamically to avoid circular deps)
       try {
-        await this.runSimulation();
-      } catch (err: any) {
+        await this.runSimulation(agentType, provider);
+      } catch (err) {
         console.error("Simulation error:", err);
       } finally {
         this.simulationRunning = false;
@@ -351,7 +396,7 @@ export class ObservatoryServer {
   // Simulation runner
   // ============================================================
 
-  private async runSimulation(): Promise<void> {
+  private async runSimulation(agentType: SimulationAgentType = "llm", provider?: LLMProvider): Promise<void> {
     const { v4: uuid } = await import("uuid");
     const { ComedyEngine } = await import("../games/nexus/comedy-engine.js");
     const { SimpleAgent } = await import("../agents/simple-agent.js");
@@ -366,29 +411,47 @@ export class ObservatoryServer {
       moveFeeWei: BigInt("5000000000000000"),
       messageFeeWei: BigInt("1000000000000000"),
       timeouts: {
-        negotiationMs: 30000,
-        actionMs: 15000,
+        negotiationMs: agentType === "llm" ? 60000 : 30000,
+        actionMs: agentType === "llm" ? 60000 : 15000,
       },
     };
 
-    const strategies = [
-      { name: "Alice_Cooperator", strategy: "cooperator" as const },
-      { name: "Bob_TitForTat", strategy: "tit_for_tat" as const },
-      { name: "Charlie_Diplomat", strategy: "diplomat" as const },
-      { name: "Dave_Defector", strategy: "defector" as const },
-    ];
-
     const engine = new ComedyEngine(config, this.eventBus, this.trustGraph);
+    engine.setPauseGate(this.pauseGate);
     // No artificial delays — game runs at agent response speed.
     // Events stream to Observatory via WebSocket in real-time.
     engine.paceDelayMs = 60;
 
     const agentInfo: Array<{ id: string; name: string; strategy: string }> = [];
-    for (const { name, strategy } of strategies) {
-      const agentId = uuid();
-      const agent = new SimpleAgent(agentId, strategy, name);
-      engine.registerAgent(agent);
-      agentInfo.push({ id: agentId, name, strategy });
+
+    if (agentType === "llm") {
+      const llmProvider = provider ?? createProvider();
+      const modelLabel = llmProvider.getModels().smart;
+
+      for (const persona of DEFAULT_LLM_PERSONAS) {
+        const agentId = uuid();
+        const agent = new LLMAgent(persona.path, agentId, {
+          provider: llmProvider,
+          name: persona.name,
+          onLogEntry: (entry) => this.onAgentLog?.(entry),
+        });
+        engine.registerAgent(agent);
+        agentInfo.push({ id: agentId, name: persona.name, strategy: modelLabel });
+      }
+    } else {
+      const strategies = [
+        { name: "Alice_Cooperator", strategy: "cooperator" as const },
+        { name: "Bob_TitForTat", strategy: "tit_for_tat" as const },
+        { name: "Charlie_Diplomat", strategy: "diplomat" as const },
+        { name: "Dave_Defector", strategy: "defector" as const },
+      ];
+
+      for (const { name, strategy } of strategies) {
+        const agentId = uuid();
+        const agent = new SimpleAgent(agentId, strategy, name);
+        engine.registerAgent(agent);
+        agentInfo.push({ id: agentId, name, strategy });
+      }
     }
 
     // Broadcast agent info so frontend can display names and strategies
