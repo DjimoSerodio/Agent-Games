@@ -131,7 +131,10 @@ export class ObservatoryServer {
       case "get_trust_snapshots":
         this.sendToSpectator(spectatorId, {
           type: "trust_snapshots",
-          data: this.trustGraph.getAllSnapshots(),
+          data: {
+            snapshots: this.trustGraph.getAllSnapshots(),
+            readModels: this.trustGraph.getAllReadModels(),
+          },
         });
         break;
     }
@@ -329,12 +332,17 @@ export class ObservatoryServer {
     });
 
     this.app.get("/api/trust/snapshots", (_, res) => {
-      res.json(this.trustGraph.getAllSnapshots());
+      res.json({
+        snapshots: this.trustGraph.getAllSnapshots(),
+        readModels: this.trustGraph.getAllReadModels(),
+        snapshotArtifact: this.trustGraph.getSnapshotArtifact(),
+      });
     });
 
     this.app.get("/api/trust/agent/:agentId", (req, res) => {
       const snapshot = this.trustGraph.getSnapshot(req.params.agentId);
-      res.json(snapshot);
+      const readModel = this.trustGraph.getReadModel(req.params.agentId);
+      res.json({ snapshot, readModel });
     });
 
     // Prediction markets (placeholder)

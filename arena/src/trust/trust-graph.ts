@@ -8,7 +8,17 @@
  * - Pre-trusted seed nodes
  */
 
-import { AgentId, GameId, TrustEdge, TrustSnapshot, TrustUpdate } from "../core/types.js";
+import {
+  AgentId,
+  GameId,
+  TrustEdge,
+  TrustEvidence,
+  TrustReadModel,
+  TrustSnapshot,
+  TrustSnapshotArtifact,
+  TrustUpdate,
+} from "../core/types.js";
+import { trustUpdateToEvidence, type TrustEvidenceMeta } from "./evidence.js";
 
 export interface TrustGraphConfig {
   /** Damping factor (like PageRank). 0.15 = 15% chance of jumping to pre-trusted set */
@@ -38,9 +48,11 @@ const DEFAULT_CONFIG: TrustGraphConfig = {
 };
 
 export class TrustGraph {
+  private static readonly REDUCER_VERSION = "trust-v0";
   private edges: Map<AgentId, Map<AgentId, TrustEdge>> = new Map();
   private agents: Set<AgentId> = new Set();
   private globalScores: Map<AgentId, number> = new Map();
+  private evidenceLog: TrustEvidence[] = [];
   private config: TrustGraphConfig;
   private currentTime: number = 0;
 
@@ -117,14 +129,26 @@ export class TrustGraph {
    * Apply trust updates from a game round
    */
   applyUpdates(updates: TrustUpdate[], gameId: GameId): void {
-    for (const update of updates) {
-      if (update.delta > 0) {
-        this.recordInteraction(update.from, update.to, true, gameId, Math.abs(update.delta));
-      } else if (update.delta < 0) {
-        this.recordInteraction(update.from, update.to, false, gameId, Math.abs(update.delta));
+    this.applyUpdatesWithMeta(updates, { gameId });
+  }
+
+  applyUpdatesWithMeta(updates: TrustUpdate[], meta: TrustEvidenceMeta): void {
+    const startingIndex = this.evidenceLog.length;
+    const evidence = updates.map((update, index) => trustUpdateToEvidence(update, meta, startingIndex + index));
+    this.applyEvidenceBatch(evidence);
+  }
+
+  applyEvidenceBatch(evidenceBatch: TrustEvidence[]): void {
+    let changed = false;
+    for (const evidence of evidenceBatch) {
+      this.evidenceLog.push(evidence);
+      const delta = typeof evidence.payload.delta === "number" ? evidence.payload.delta : undefined;
+      if (delta !== undefined && delta !== 0 && evidence.actor && evidence.subject && evidence.gameId) {
+        this.recordInteraction(evidence.actor, evidence.subject, delta > 0, evidence.gameId, Math.abs(delta));
+        changed = true;
       }
     }
-    this.recompute();
+    if (changed) this.recompute();
   }
 
   /**
@@ -317,6 +341,91 @@ export class TrustGraph {
     };
   }
 
+  getReadModel(agentId: AgentId): TrustReadModel {
+    const snapshot = this.getSnapshot(agentId);
+    const evidence = this.evidenceLog.filter((entry) => entry.subject === agentId);
+
+    const keptCommitments = evidence.filter((entry) => entry.type === "attestation.promise_fulfilled" || entry.type === "commitment.resolved").length;
+    const brokenCommitments = evidence.filter((entry) => entry.type === "attestation.promise_breached" || entry.type === "attestation.contested").length;
+    const successfulTrades = evidence.filter((entry) => entry.type === "trade.completed").length;
+    const failedReciprocityEvents = evidence.filter((entry) => entry.type === "trade.not_reciprocated").length;
+    const sabotageEvents = evidence.filter((entry) =>
+      entry.type === "sabotage.executed" || entry.type === "conquest.executed" || entry.type === "aggression.witnessed",
+    ).length;
+    const crisisContributions = evidence.filter((entry) => entry.type === "crisis.contributed").length;
+
+    return {
+      agentId,
+      globalScore: snapshot.globalScore,
+      directScores: snapshot.directScores,
+      rank: snapshot.rank,
+      gamesPlayed: snapshot.gamesPlayed,
+      keptCommitments,
+      brokenCommitments,
+      successfulTrades,
+      failedReciprocityEvents,
+      sabotageEvents,
+      crisisContributions,
+      recentReasons: evidence
+        .slice(-5)
+        .reverse()
+        .map((entry) => ({
+          reason: entry.reasonCode ?? entry.type,
+          gameId: entry.gameId,
+          round: entry.round,
+          timestamp: entry.timestamp,
+        })),
+    };
+  }
+
+  getAllReadModels(): TrustReadModel[] {
+    return Array.from(this.agents).map((id) => this.getReadModel(id));
+  }
+
+  getEvidenceLog(): TrustEvidence[] {
+    return this.evidenceLog.map((entry) => ({
+      ...entry,
+      refs: { ...entry.refs },
+      payload: { ...entry.payload },
+    }));
+  }
+
+  getSnapshotArtifact(sessionId?: string): TrustSnapshotArtifact {
+    const readModels = this.getAllReadModels();
+    const gamesIncluded = Array.from(
+      new Set(this.evidenceLog.map((entry) => entry.gameId).filter((value): value is GameId => Boolean(value))),
+    );
+    const latestEvidenceTimestamp = this.evidenceLog[this.evidenceLog.length - 1]?.timestamp ?? Date.now();
+    return {
+      snapshotId: `trust-snapshot-${this.currentTime}`,
+      ...(sessionId ? { sessionId } : {}),
+      timestamp: latestEvidenceTimestamp,
+      reducerVersion: TrustGraph.REDUCER_VERSION,
+      gamesIncluded,
+      scores: readModels.map((model) => ({
+        agentId: model.agentId,
+        globalScore: model.globalScore,
+        rank: model.rank,
+        gamesPlayed: model.gamesPlayed,
+        keptCommitments: model.keptCommitments,
+        brokenCommitments: model.brokenCommitments,
+        successfulTrades: model.successfulTrades,
+        failedReciprocityEvents: model.failedReciprocityEvents,
+        sabotageEvents: model.sabotageEvents,
+        crisisContributions: model.crisisContributions,
+        recentReasons: model.recentReasons,
+      })),
+      evidenceRange: {
+        fromId: this.evidenceLog[0]?.id ?? null,
+        toId: this.evidenceLog[this.evidenceLog.length - 1]?.id ?? null,
+      },
+      metadata: {
+        evidenceCount: this.evidenceLog.length,
+        graphTime: this.currentTime,
+      },
+    };
+  }
+
   /**
    * Get all trust snapshots (for spectator display)
    */
@@ -363,6 +472,8 @@ export class TrustGraph {
     agents: AgentId[];
     edges: TrustEdge[];
     globalScores: Record<AgentId, number>;
+    evidenceLog: TrustEvidence[];
+    currentTime: number;
   } {
     const allEdges: TrustEdge[] = [];
     for (const edgeMap of this.edges.values()) {
@@ -380,6 +491,8 @@ export class TrustGraph {
       agents: Array.from(this.agents),
       edges: allEdges,
       globalScores: scores,
+      evidenceLog: this.getEvidenceLog(),
+      currentTime: this.currentTime,
     };
   }
 
@@ -399,6 +512,12 @@ export class TrustGraph {
     }
 
     this.globalScores = new Map(Object.entries(data.globalScores));
+    this.evidenceLog = (data.evidenceLog ?? []).map((entry) => ({
+      ...entry,
+      refs: { ...entry.refs },
+      payload: { ...entry.payload },
+    }));
+    this.currentTime = data.currentTime ?? this.currentTime;
   }
 
   /**

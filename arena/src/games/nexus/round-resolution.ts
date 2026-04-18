@@ -169,13 +169,19 @@ export function resolveActions(ctx: any, actions: Map<AgentId, Action[]>): Round
   }
 
   ctx.updateBonusHolders();
-  ctx.trustGraph.applyUpdates(trustUpdates, ctx.state.gameId);
+  ctx.trustGraph.applyUpdatesWithMeta(trustUpdates, {
+    gameId: ctx.state.gameId,
+    round: ctx.state.round,
+    phase: ctx.state.phase,
+    timestamp: Date.now(),
+  });
   ctx.trustGraph.tick();
 
   if (trustUpdates.length > 0) {
     ctx.emitEvent("trust.updated", {
       updates: trustUpdates,
       snapshots: ctx.trustGraph.getAllSnapshots(),
+      readModels: ctx.trustGraph.getAllReadModels(),
     }, { agents: "all", spectators: true });
   }
 
