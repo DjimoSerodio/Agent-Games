@@ -122,6 +122,42 @@ export class MCPAgentAdapter implements GameAgent {
     return this.currentState?.trustScores ?? {};
   }
 
+  getTrustDossiers() {
+    return this.currentState?.trustDossiers ?? {};
+  }
+
+  getTrustProjections() {
+    return this.currentState?.trustProjectionByAgent ?? {};
+  }
+
+  getTrustSnapshotArtifact() {
+    return this.currentState?.trustSnapshotArtifact ?? null;
+  }
+
+  getBehaviorMemory() {
+    return this.currentState?.behaviorMemory ?? null;
+  }
+
+  getVisibleCommitments() {
+    return this.currentState?.visibleCommitments ?? [];
+  }
+
+  getVisibleAttestations() {
+    return this.currentState?.visibleAttestations ?? [];
+  }
+
+  getTrustQuerySurface() {
+    return {
+      trustScores: this.getVisibleTrustScores(),
+      trustDossiers: this.getTrustDossiers(),
+      trustProjectionByAgent: this.getTrustProjections(),
+      trustSnapshotArtifact: this.getTrustSnapshotArtifact(),
+      behaviorMemory: this.getBehaviorMemory(),
+      visibleCommitments: this.getVisibleCommitments(),
+      visibleAttestations: this.getVisibleAttestations(),
+    };
+  }
+
   getVisibleMessages() {
     const history = this.currentState?.messageHistory ?? [];
     return [...history, ...this.currentMessages];
