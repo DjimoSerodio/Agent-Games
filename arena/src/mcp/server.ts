@@ -64,6 +64,13 @@ export const MCP_RESOURCE_URIS = [
   "game://players",
   "game://ecosystems",
   "game://trust",
+  "game://trust-dossier",
+  "game://trust-projection",
+  "game://trust-snapshot",
+  "game://behavior-memory",
+  "game://commitments",
+  "game://attestations",
+  "game://trust-query",
   "game://messages",
 ] as const;
 
@@ -271,6 +278,55 @@ export function createComedyMcpServer(adapter?: MCPAgentAdapter): ComedyMcpRunti
     "game://trust",
     { description: "Visible trust graph for this agent", mimeType: "application/json" },
     async (uri) => jsonResource(uri.toString(), { trust: boundAdapter.getVisibleTrustScores() }),
+  );
+
+  mcpServer.registerResource(
+    "trust-dossier",
+    "game://trust-dossier",
+    { description: "Structured trust dossiers visible to this agent", mimeType: "application/json" },
+    async (uri) => jsonResource(uri.toString(), { dossiers: boundAdapter.getTrustDossiers() }),
+  );
+
+  mcpServer.registerResource(
+    "trust-projection",
+    "game://trust-projection",
+    { description: "Derived trust projections visible to this agent", mimeType: "application/json" },
+    async (uri) => jsonResource(uri.toString(), { projections: boundAdapter.getTrustProjections() }),
+  );
+
+  mcpServer.registerResource(
+    "trust-snapshot",
+    "game://trust-snapshot",
+    { description: "Latest trust snapshot artifact for this game", mimeType: "application/json" },
+    async (uri) => jsonResource(uri.toString(), { snapshot: boundAdapter.getTrustSnapshotArtifact() }),
+  );
+
+  mcpServer.registerResource(
+    "behavior-memory",
+    "game://behavior-memory",
+    { description: "Structured obligation/outcome/attestation/relation memory for this agent", mimeType: "application/json" },
+    async (uri) => jsonResource(uri.toString(), { behaviorMemory: boundAdapter.getBehaviorMemory() }),
+  );
+
+  mcpServer.registerResource(
+    "commitments",
+    "game://commitments",
+    { description: "Visible commitments for this agent", mimeType: "application/json" },
+    async (uri) => jsonResource(uri.toString(), { commitments: boundAdapter.getVisibleCommitments() }),
+  );
+
+  mcpServer.registerResource(
+    "attestations",
+    "game://attestations",
+    { description: "Visible attestations for this agent", mimeType: "application/json" },
+    async (uri) => jsonResource(uri.toString(), { attestations: boundAdapter.getVisibleAttestations() }),
+  );
+
+  mcpServer.registerResource(
+    "trust-query",
+    "game://trust-query",
+    { description: "Consolidated machine-facing trust query surface", mimeType: "application/json" },
+    async (uri) => jsonResource(uri.toString(), boundAdapter.getTrustQuerySurface()),
   );
 
   mcpServer.registerResource(
