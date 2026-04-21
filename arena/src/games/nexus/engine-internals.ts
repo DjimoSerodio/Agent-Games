@@ -1,5 +1,6 @@
 import { AgentId, TrustUpdate } from "../../core/types.js";
 import { computeCommonsHealthRefresh } from "./ecosystem.js";
+import { projectVisibleBehaviorTags } from "./behavior-view.js";
 import { BehaviorTag, CommitmentRecord, CommonsHealthSnapshot, EvidenceRef, ResourceInventory, ResourceType, RESOURCE_NAMES } from "./types.js";
 import { resolveSingleCommitment as resolveSingleCommitmentFn } from "./commitment.js";
 
@@ -110,7 +111,10 @@ export function recordBehaviorTag(
     trustDeltaHint,
   };
   ctx.state.behaviorTags.push(tag);
-  ctx.emitEvent("behavior.tagged", tag, { agents: "all", spectators: true });
+  const [visibleTag] = projectVisibleBehaviorTags([tag]);
+  if (visibleTag) {
+    ctx.emitEvent("behavior.tagged", visibleTag, { agents: "all", spectators: true });
+  }
   return tag;
 }
 

@@ -1,8 +1,8 @@
 /**
- * Comedy of the Commons Game Engine
+ * Tragedy of the Commons Game Engine
  *
  * The flagship coordination game implementation.
- * Extends the abstract GameEngine with Comedy-specific logic.
+ * Extends the abstract GameEngine with Tragedy-specific logic.
  */
 
 import { v4 as uuid } from "uuid";
@@ -19,10 +19,10 @@ import {
   Message,
 } from "../../core/types.js";
 import {
-  ComedyGameState,
-  ComedyAgentView,
-  ComedyAction,
-  ComedyPlayerState,
+  TragedyGameState,
+  TragedyAgentView,
+  TragedyAction,
+  TragedyPlayerState,
   ResourceInventory,
   ResourceType,
   CrisisEvent,
@@ -64,14 +64,15 @@ import {
 import { TrustGraph } from "../../trust/trust-graph.js";
 import { ERC8004TrustIntegration, ERC8004Config } from "../../trust/erc8004.js";
 import {
-  createComedyWorldMap,
+  createTragedyWorldMap,
   getRegionByCoord,
   getRegionById,
   getStartingPositions as getWorldStartingPositions,
   projectWorldMapToHexGrid,
 } from "./world-map.js";
+import { projectVisibleBehaviorTags } from "./behavior-view.js";
 
-export class ComedyEngine extends GameEngine<ComedyGameState> {
+export class TragedyEngine extends GameEngine<TragedyGameState> {
   private static pendingPrizeCarryoverWei = 0n;
 
   private trustGraph: TrustGraph;
@@ -104,13 +105,13 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
   // Abstract method implementations
   // ============================================================
 
-  protected createInitialState(config: GameConfig): ComedyGameState {
-    const worldMap = createComedyWorldMap();
+  protected createInitialState(config: GameConfig): TragedyGameState {
+    const worldMap = createTragedyWorldMap();
     const hexGrid = projectWorldMapToHexGrid(worldMap);
-    const carryoverPrizePool = ComedyEngine.takePrizeCarryover();
+    const carryoverPrizePool = TragedyEngine.takePrizeCarryover();
 
-    // Determine hidden max rounds (20-30, agents don't know exact number)
-    const actualMaxRounds = 20 + Math.floor(Math.random() * 11); // 20-30
+    // Keep the round cap hidden from agents, but honor the configured limit.
+    const actualMaxRounds = config.maxRounds;
     const initialCommonsHealth = this.buildCommonsHealthSnapshot(
       0,
       100,
@@ -199,7 +200,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       const agentId = this.state.players[i];
       const startPos = startingPositions[i % startingPositions.length];
 
-      const playerState: ComedyPlayerState = {
+      const playerState: TragedyPlayerState = {
         id: agentId,
         resources: { grain: 2, timber: 2, ore: 1, fish: 1, water: 1, energy: 1 },
         influence: 0,
@@ -252,9 +253,9 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
           const agentName = `agent_${agentId.slice(0, 8)}`;
           await this.erc8004Integration.registerAgentForGame(agentId, {
             name: agentName,
-            description: `Comedy of the Commons game agent`,
+            description: `Tragedy of the Commons game agent`,
             services: [{
-              name: "comedy_engine",
+              name: "tragedy_engine",
               endpoint: `game://${this.config.id}`,
             }],
           });
@@ -277,7 +278,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
     this.emitHexGridData();
   }
 
-  protected getAgentView(agentId: AgentId): ComedyAgentView {
+  protected getAgentView(agentId: AgentId): TragedyAgentView {
     const playerState = this.state.playerStates.get(agentId);
     if (!playerState) throw new Error(`Unknown agent: ${agentId}`);
 
@@ -347,6 +348,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       visibleArmies: Array.from(this.state.playerStates.values()).flatMap(ps => ps.armies),
       visibleCommitments: this.getVisibleCommitments(agentId),
       visibleAttestations: this.getVisibleAttestations(agentId),
+      visibleBehaviorTags: projectVisibleBehaviorTags(this.state.behaviorTags),
       messageHistory: this.filterMessagesForAgent(agentId, this.messageLog),
       prizePool: this.state.prizePool.toString(),
       payablePrizePool: this.state.payablePrizePool.toString(),
@@ -367,7 +369,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
     const ps = this.state.playerStates.get(agentId);
     if (!ps) return [];
 
-    const actions: ComedyAction[] = [];
+    const actions: TragedyAction[] = [];
     const r = ps.resources;
 
     // Build actions (check if player has resources)
@@ -568,7 +570,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
     }
 
     // Track submitted trades to match them
-    const tradeSubmissions = new Map<string, ComedyAction>();
+    const tradeSubmissions = new Map<string, TragedyAction>();
 
     // Process each agent's actions
     for (const [agentId, agentActions] of actions) {
@@ -576,7 +578,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       if (!ps) continue;
 
       // Limit to 2 actions per turn
-      const limitedActions = agentActions.slice(0, 2) as ComedyAction[];
+      const limitedActions = agentActions.slice(0, 2) as TragedyAction[];
 
       for (const action of limitedActions) {
         this.state.moveCount++;
@@ -696,8 +698,8 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
 
   private resolveAction(
     agentId: AgentId,
-    action: ComedyAction,
-    tradeSubmissions: Map<string, ComedyAction>,
+    action: TragedyAction,
+    tradeSubmissions: Map<string, TragedyAction>,
     trustUpdates: TrustUpdate[],
     sabotageEvents: Array<{ from: AgentId; to: AgentId; round: number }>,
   ): ActionOutcome {
@@ -1281,13 +1283,13 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
   // ============================================================
 
   private resolveMatchedTrades(
-    submissions: Map<string, ComedyAction>,
+    submissions: Map<string, TragedyAction>,
     outcomes: ActionOutcome[],
     trustUpdates: TrustUpdate[],
     resolvedTrades: Array<{ from: AgentId; to: AgentId; round: number }>,
   ): void {
     // Group by trade pair
-    const pairs = new Map<string, ComedyAction[]>();
+    const pairs = new Map<string, TragedyAction[]>();
     for (const [key, action] of submissions) {
       const pairKey = key.split(":")[0];
       if (!pairs.has(pairKey)) pairs.set(pairKey, []);
@@ -2347,7 +2349,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
   // Helpers
   // ============================================================
 
-  private makeAction(type: ComedyAction["type"], agentId: AgentId, params: Record<string, unknown> = {}): ComedyAction {
+  private makeAction(type: TragedyAction["type"], agentId: AgentId, params: Record<string, unknown> = {}): TragedyAction {
     return {
       type,
       agentId,
@@ -2361,7 +2363,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
     return RESOURCE_NAMES.every((resource) => resources[resource] >= cost[resource]);
   }
 
-  private deductResources(ps: ComedyPlayerState, cost: ResourceInventory): void {
+  private deductResources(ps: TragedyPlayerState, cost: ResourceInventory): void {
     for (const resource of RESOURCE_NAMES) {
       ps.resources[resource] -= cost[resource];
     }
@@ -3288,7 +3290,10 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
       trustDeltaHint,
     };
     this.state.behaviorTags.push(tag);
-    this.emitEvent("behavior.tagged", tag, { agents: "all", spectators: true });
+    const [visibleTag] = projectVisibleBehaviorTags([tag]);
+    if (visibleTag) {
+      this.emitEvent("behavior.tagged", visibleTag, { agents: "all", spectators: true });
+    }
     return tag;
   }
 
@@ -3361,7 +3366,7 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
     this.state.payablePrizePool = this.applyFractionToBigInt(this.state.prizePool, fraction);
     this.state.slashedPrizePool = this.state.prizePool - this.state.payablePrizePool;
     this.state.carryoverPrizePool = this.state.slashedPrizePool;
-    ComedyEngine.pendingPrizeCarryoverWei = this.state.carryoverPrizePool;
+    TragedyEngine.pendingPrizeCarryoverWei = this.state.carryoverPrizePool;
 
     this.state.currentCommonsHealth = this.buildCommonsHealthSnapshot(
       this.state.round,
@@ -3406,8 +3411,8 @@ export class ComedyEngine extends GameEngine<ComedyGameState> {
   }
 
   private static takePrizeCarryover(): bigint {
-    const carryover = ComedyEngine.pendingPrizeCarryoverWei;
-    ComedyEngine.pendingPrizeCarryoverWei = 0n;
+    const carryover = TragedyEngine.pendingPrizeCarryoverWei;
+    TragedyEngine.pendingPrizeCarryoverWei = 0n;
     return carryover;
   }
 
