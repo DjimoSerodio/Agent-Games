@@ -19,6 +19,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { EventBus } from "../core/event-bus.js";
 import { ArenaEvent, AgentId } from "../core/types.js";
 import { TrustGraph } from "../trust/trust-graph.js";
+import type { AgentLogEntry } from "./agent-log.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,18 +27,6 @@ const __dirname = path.dirname(__filename);
 interface AdminConnection {
   ws: WebSocket;
   connectedAt: number;
-}
-
-/**
- * Collected log entry for agent decisions, API calls, etc.
- */
-interface AgentLogEntry {
-  timestamp: number;
-  agentId: AgentId;
-  round: number;
-  phase: string;
-  type: "decision" | "api_call" | "message" | "action" | "error";
-  data: unknown;
 }
 
 export class AdminServer {
@@ -289,11 +278,21 @@ export class AdminServer {
 
     // Agent logs
     this.app.get("/api/agents", (_req, res) => {
-      const agents: Record<string, { entries: number; lastActivity: number }> = {};
+      const agents: Record<string, {
+        name: string;
+        entries: number;
+        lastActivity: number;
+        lastRound: number;
+        lastPhase: string;
+      }> = {};
       for (const [agentId, entries] of this.agentLogs) {
+        const latest = entries[entries.length - 1];
         agents[agentId] = {
+          name: latest?.agentName || agentId,
           entries: entries.length,
-          lastActivity: entries.length > 0 ? entries[entries.length - 1].timestamp : 0,
+          lastActivity: latest?.timestamp ?? 0,
+          lastRound: latest?.round ?? 0,
+          lastPhase: latest?.phase ?? "unknown",
         };
       }
       res.json({ agents });

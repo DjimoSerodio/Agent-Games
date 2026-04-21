@@ -3,7 +3,7 @@
  *
  * Base class for all coordination games in the arena.
  * Handles the turn lifecycle, communication routing, and event emission.
- * Specific games (Comedy of the Commons, Crab Bucket, etc.) extend this.
+ * Specific games (Tragedy of the Commons, Crab Bucket, etc.) extend this.
  */
 
 import { v4 as uuid } from "uuid";
@@ -28,6 +28,7 @@ export abstract class GameEngine<TState extends GameState = GameState> {
   protected eventBus: EventBus;
   protected messageLog: Message[] = [];
   protected roundResults: RoundResult[] = [];
+  protected pauseGate?: () => Promise<void>;
 
   constructor(config: GameConfig, eventBus: EventBus) {
     this.config = config;
@@ -131,6 +132,7 @@ export abstract class GameEngine<TState extends GameState = GameState> {
    * Execute a single round of the game
    */
   protected async executeRound(): Promise<void> {
+    await this.waitIfPaused();
     this.state.round++;
 
     this.emitEvent("game.round.start", {
@@ -138,28 +140,42 @@ export abstract class GameEngine<TState extends GameState = GameState> {
     }, { agents: "all", spectators: true });
 
     // Phase 1: Production
+    await this.waitIfPaused();
     this.setPhase("production");
     this.executeProduction();
     if (this.paceDelayMs > 0) await this.delay(this.paceDelayMs);
 
     // Phase 2: Negotiation
+    await this.waitIfPaused();
     this.setPhase("negotiation");
     const messages = await this.executeNegotiation();
     if (this.paceDelayMs > 0) await this.delay(this.paceDelayMs);
 
     // Phase 3: Action
+    await this.waitIfPaused();
     this.setPhase("action");
     const actions = await this.collectActions();
     if (this.paceDelayMs > 0) await this.delay(this.paceDelayMs);
 
     // Phase 4: Resolution
+    await this.waitIfPaused();
     this.setPhase("resolution");
     const result = this.resolveActions(actions);
     this.roundResults.push(result);
 
     // Notify agents of results
+    await this.waitIfPaused();
     await this.notifyResults(result);
     if (this.paceDelayMs > 0) await this.delay(this.paceDelayMs);
+  }
+
+  setPauseGate(pauseGate?: () => Promise<void>): void {
+    this.pauseGate = pauseGate;
+  }
+
+  protected async waitIfPaused(): Promise<void> {
+    if (!this.pauseGate) return;
+    await this.pauseGate();
   }
 
   protected delay(ms: number): Promise<void> {
