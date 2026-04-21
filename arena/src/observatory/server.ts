@@ -5,7 +5,7 @@
  * Serves the event bus stream to connected clients.
  *
  * Features:
- * - Static frontend serving (public/)
+ * - Static frontend serving (React dist at / with legacy public compatibility)
  * - Real-time game state streaming via WebSocket
  * - Private message feed (spectators see all 1-1 comms)
  * - Trust graph heatmap data
@@ -15,6 +15,7 @@
 
 import { WebSocketServer, WebSocket } from "ws";
 import express from "express";
+import { existsSync } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { EventBus } from "../core/event-bus.js";
@@ -220,11 +221,23 @@ export class ObservatoryServer {
 
     // Serve static frontend
     const publicDir = path.resolve(__dirname, "../../public");
+    const reactDistDir = path.resolve(__dirname, "../../frontend/dist");
+    const reactIndexPath = path.join(reactDistDir, "index.html");
+    const legacyObservatoryIndexPath = path.join(publicDir, "index.html");
+    const hasReactDist = existsSync(reactIndexPath);
 
     // Serve /rules without trailing slash (before static middleware)
     this.app.get("/rules", (_, res) => {
       res.sendFile(path.join(publicDir, "rules", "index.html"));
     });
+
+    this.app.get("/legacy-observatory", (_, res) => {
+      res.sendFile(legacyObservatoryIndexPath);
+    });
+
+    if (hasReactDist) {
+      this.app.use(express.static(reactDistDir));
+    }
 
     this.app.use(express.static(publicDir));
 

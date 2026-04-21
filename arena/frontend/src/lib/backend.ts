@@ -8,7 +8,7 @@ export function getBackendHttpOrigin() {
     return trimTrailingSlash(configuredOrigin);
   }
 
-  if (window.location.port === '3000') {
+  if (!import.meta.env.DEV) {
     return window.location.origin;
   }
 
