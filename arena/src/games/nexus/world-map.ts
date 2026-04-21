@@ -259,7 +259,7 @@ const ECOSYSTEM_SPECS: EcosystemSpec[] = [
     resource: "fish",
     regionIds: ["glacier_bay", "aurora_fjord", "pearl_delta", "kelp_shoals", "monsoon_reach", "copper_coast"],
     label: { x: 338, y: 548 },
-    baseRegeneration: 2,
+    baseRegeneration: 0,
     maxHealth: 100,
     flourishThreshold: 80,
     collapseThreshold: 22,
@@ -272,7 +272,7 @@ const ECOSYSTEM_SPECS: EcosystemSpec[] = [
     resource: "timber",
     regionIds: ["mistbarrow", "oldcanopy", "commons_heart", "verdant_weald"],
     label: { x: 488, y: 286 },
-    baseRegeneration: 2,
+    baseRegeneration: 0,
     maxHealth: 100,
     flourishThreshold: 78,
     collapseThreshold: 26,
@@ -285,7 +285,7 @@ const ECOSYSTEM_SPECS: EcosystemSpec[] = [
     resource: "water",
     regionIds: ["riverwake", "commons_heart", "orchard_run", "solis_fields"],
     label: { x: 540, y: 402 },
-    baseRegeneration: 2,
+    baseRegeneration: 0,
     maxHealth: 100,
     flourishThreshold: 82,
     collapseThreshold: 24,
@@ -298,7 +298,7 @@ const ECOSYSTEM_SPECS: EcosystemSpec[] = [
     resource: "grain",
     regionIds: ["pearl_delta", "orchard_run", "monsoon_reach", "solis_fields"],
     label: { x: 570, y: 594 },
-    baseRegeneration: 2,
+    baseRegeneration: 0,
     maxHealth: 100,
     flourishThreshold: 76,
     collapseThreshold: 20,
@@ -307,26 +307,26 @@ const ECOSYSTEM_SPECS: EcosystemSpec[] = [
 ];
 
 const WORLD_ASSETS = {
-  frame: "/assets/comedy/world-frame.svg",
-  compass: "/assets/comedy/compass-rose.svg",
-  underlay: "/assets/comedy/world-underlay.svg",
+  frame: "/assets/tragedy/world-frame.svg",
+  compass: "/assets/tragedy/compass-rose.svg",
+  underlay: "/assets/tragedy/world-underlay.svg",
   resourceIcons: {
-    grain: "/assets/comedy/resources/grain.svg",
-    timber: "/assets/comedy/resources/timber.svg",
-    ore: "/assets/comedy/resources/ore.svg",
-    fish: "/assets/comedy/resources/fish.svg",
-    water: "/assets/comedy/resources/water.svg",
-    energy: "/assets/comedy/resources/energy.svg",
+    grain: "/assets/tragedy/resources/grain.svg",
+    timber: "/assets/tragedy/resources/timber.svg",
+    ore: "/assets/tragedy/resources/ore.svg",
+    fish: "/assets/tragedy/resources/fish.svg",
+    water: "/assets/tragedy/resources/water.svg",
+    energy: "/assets/tragedy/resources/energy.svg",
   },
   ecosystemIcons: {
-    fishery: "/assets/comedy/ecosystems/fishery.svg",
-    forest: "/assets/comedy/ecosystems/forest.svg",
-    aquifer: "/assets/comedy/ecosystems/aquifer.svg",
-    wetland: "/assets/comedy/ecosystems/wetland.svg",
+    fishery: "/assets/tragedy/ecosystems/fishery.svg",
+    forest: "/assets/tragedy/ecosystems/forest.svg",
+    aquifer: "/assets/tragedy/ecosystems/aquifer.svg",
+    wetland: "/assets/tragedy/ecosystems/wetland.svg",
   },
 } as const;
 
-export function createComedyWorldMap(): WorldMap {
+export function createTragedyWorldMap(): WorldMap {
   const regionIds = new Set(REGION_SPECS.map((region) => region.id));
   const regions: WorldRegion[] = REGION_SPECS.map((spec, index) => {
     const anchor = hexToDesignPixel(spec.coord);
@@ -373,8 +373,8 @@ export function createComedyWorldMap(): WorldMap {
   });
 
   return {
-    id: "comedy_of_the_commons_world",
-    name: "Comedy of the Commons",
+    id: "tragedy_of_the_commons_world",
+    name: "Tragedy of the Commons",
     hexSize: HEX_SIZE,
     regions,
     ecosystems,
@@ -423,7 +423,7 @@ export function getRegionByCoord(worldMap: WorldMap, coord: HexCoord): WorldRegi
 
 function biomeTexture(biome: RegionBiome): string {
   void biome;
-  return "/assets/comedy/region-texture.svg";
+  return "/assets/tragedy/region-texture.svg";
 }
 
 function terrainFromBiome(biome: RegionBiome, resource: ResourceType): TerrainType {
@@ -443,4 +443,3 @@ function axialDistance(a: HexCoord, b: HexCoord): number {
     Math.abs(a.q + a.r - b.q - b.r),
   );
 }
-

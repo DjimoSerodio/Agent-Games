@@ -18,8 +18,8 @@ import {
   MessageType,
 } from "../core/types.js";
 import {
-  ComedyAgentView,
-  ComedyAction,
+  TragedyAgentView,
+  TragedyAction,
   ResourceType,
   RESOURCE_NAMES,
 } from "../games/nexus/types.js";
@@ -97,7 +97,7 @@ export class SimpleAgent implements GameAgent {
     incomingMessages: Message[],
     round: number,
   ): Promise<Message[]> {
-    const view = state as ComedyAgentView;
+    const view = state as TragedyAgentView;
     const messages: Message[] = [];
     this.memory.roundCount = round;
 
@@ -137,8 +137,8 @@ export class SimpleAgent implements GameAgent {
     round: number,
     legalActions: Action[],
   ): Promise<Action[]> {
-    const view = state as ComedyAgentView;
-    const actions: ComedyAction[] = [];
+    const view = state as TragedyAgentView;
+    const actions: TragedyAction[] = [];
 
     // 1. Crisis contribution (except defectors)
     if (view.activeCrisis && !view.activeCrisis.resolved && this.strategy !== "defector") {
@@ -160,13 +160,19 @@ export class SimpleAgent implements GameAgent {
       if (tradeAction) actions.push(tradeAction);
     }
 
-    // 3. Build something if possible
+    // 3. Opportunists trailing the leader will try to destabilize the table before settling into build mode.
+    if (actions.length < 2) {
+      const pressureAction = this.decidePressureAction(view, round);
+      if (pressureAction) actions.push(pressureAction);
+    }
+
+    // 4. Build something if possible
     if (actions.length < 2) {
       const buildAction = this.decideBuildAction(view, round);
       if (buildAction) actions.push(buildAction);
     }
 
-    // 4. Explore or secondary action
+    // 5. Explore or secondary action
     if (actions.length < 2) {
       const secondAction = this.decideSecondaryAction(view, legalActions, round);
       if (secondAction) actions.push(secondAction);
@@ -189,7 +195,7 @@ export class SimpleAgent implements GameAgent {
     for (const outcome of results.outcomes) {
       if (outcome.action.agentId !== this.id) continue;
       if (outcome.action.type === "trade_player" && !outcome.success) {
-        const partnerId = (outcome.action as ComedyAction).params.partnerId as AgentId;
+        const partnerId = (outcome.action as TragedyAction).params.partnerId as AgentId;
         if (partnerId) {
           this.memory.lastBehavior[partnerId] = "defected";
           this.memory.enemies.add(partnerId);
@@ -200,7 +206,7 @@ export class SimpleAgent implements GameAgent {
       }
       // Track successful trades for alliance building
       if (outcome.action.type === "trade_player" && outcome.success) {
-        const partnerId = (outcome.action as ComedyAction).params.partnerId as AgentId;
+        const partnerId = (outcome.action as TragedyAction).params.partnerId as AgentId;
         if (partnerId) {
           this.memory.lastBehavior[partnerId] = "cooperated";
           // Increment alliance cooperation rounds if same partner
@@ -232,7 +238,7 @@ export class SimpleAgent implements GameAgent {
   // Incoming message parsing -- detects trade offers from others
   // ============================================================
 
-  private processIncomingMessages(messages: Message[], view: ComedyAgentView): void {
+  private processIncomingMessages(messages: Message[], view: TragedyAgentView): void {
     for (const msg of messages) {
       if (msg.sender === this.id) continue;
 
@@ -280,7 +286,7 @@ export class SimpleAgent implements GameAgent {
   // Strategy-specific negotiation
   // ============================================================
 
-  private negotiateCooperator(view: ComedyAgentView): Message[] {
+  private negotiateCooperator(view: TragedyAgentView): Message[] {
     const msgs: Message[] = [];
     const surplus = this.getSurplusResource(view);
     const need = this.getNeededResource(view);
@@ -320,7 +326,7 @@ export class SimpleAgent implements GameAgent {
     return msgs;
   }
 
-  private negotiateDefector(view: ComedyAgentView): Message[] {
+  private negotiateDefector(view: TragedyAgentView): Message[] {
     const msgs: Message[] = [];
 
     msgs.push(this.makeMessage(
@@ -351,7 +357,7 @@ export class SimpleAgent implements GameAgent {
     return msgs;
   }
 
-  private negotiateTitForTat(view: ComedyAgentView): Message[] {
+  private negotiateTitForTat(view: TragedyAgentView): Message[] {
     const msgs: Message[] = [];
     const surplus = this.getSurplusResource(view);
     const need = this.getNeededResource(view);
@@ -390,7 +396,7 @@ export class SimpleAgent implements GameAgent {
     return msgs;
   }
 
-  private negotiateDiplomat(view: ComedyAgentView): Message[] {
+  private negotiateDiplomat(view: TragedyAgentView): Message[] {
     const msgs: Message[] = [];
     const surplus = this.getSurplusResource(view);
     const need = this.getNeededResource(view);
@@ -431,7 +437,7 @@ export class SimpleAgent implements GameAgent {
     return msgs;
   }
 
-  private negotiateBuilder(view: ComedyAgentView): Message[] {
+  private negotiateBuilder(view: TragedyAgentView): Message[] {
     const msgs: Message[] = [];
     const need = this.getNeededResource(view);
     const surplus = this.getSurplusResource(view);
@@ -463,7 +469,7 @@ export class SimpleAgent implements GameAgent {
     return msgs;
   }
 
-  private negotiateOpportunist(view: ComedyAgentView): Message[] {
+  private negotiateOpportunist(view: TragedyAgentView): Message[] {
     const msgs: Message[] = [];
     const myScore = view.myVP;
     const maxOtherScore = Math.max(
@@ -505,7 +511,7 @@ export class SimpleAgent implements GameAgent {
   // Action decisions
   // ============================================================
 
-  private decideTradeAction(view: ComedyAgentView, round: number): ComedyAction | null {
+  private decideTradeAction(view: TragedyAgentView, round: number): TragedyAction | null {
     // Defectors never follow through on trades
     if (this.strategy === "defector") return null;
 
@@ -537,7 +543,7 @@ export class SimpleAgent implements GameAgent {
     return null;
   }
 
-  private decideBuildAction(view: ComedyAgentView, round: number): ComedyAction | null {
+  private decideBuildAction(view: TragedyAgentView, round: number): TragedyAction | null {
     const r = view.myResources;
     const totalStructures = view.myStructures.villages.length + 
                           view.myStructures.townships.length + 
@@ -583,7 +589,28 @@ export class SimpleAgent implements GameAgent {
     return null;
   }
 
-  private decideSecondaryAction(view: ComedyAgentView, legalActions: Action[], round: number): ComedyAction | null {
+  private decidePressureAction(view: TragedyAgentView, round: number): TragedyAction | null {
+    if (this.strategy !== "opportunist" || round <= 4) return null;
+
+    const leader = this.getLeadingAgent(view);
+    if (!leader) return null;
+
+    const leaderScore = view.allScores[leader] || 0;
+    const myDeficit = leaderScore - view.myVP;
+    if (myDeficit < 2) return null;
+
+    if (view.myResources.energy < 1 || view.myResources.ore < 1) return null;
+
+    return {
+      type: "sabotage",
+      agentId: this.id,
+      params: { targetAgent: leader },
+      round,
+      timestamp: Date.now(),
+    };
+  }
+
+  private decideSecondaryAction(view: TragedyAgentView, legalActions: Action[], round: number): TragedyAction | null {
     const accessibleEcosystem = this.getAccessibleEcosystem(view);
 
     // Early game: explore more
@@ -591,9 +618,16 @@ export class SimpleAgent implements GameAgent {
       return { type: "explore", agentId: this.id, params: {}, round, timestamp: Date.now() };
     }
 
-    // Sabotage if defector and can afford it
+    // Defectors prefer direct sabotage pressure when they can afford it.
     if (this.strategy === "defector" && view.myResources.energy >= 1 && view.myResources.ore >= 1) {
-      return { type: "sabotage", agentId: this.id, params: {}, round, timestamp: Date.now() };
+      const leader = this.getLeadingAgent(view);
+      return {
+        type: "sabotage",
+        agentId: this.id,
+        params: leader ? { targetAgent: leader } : {},
+        round,
+        timestamp: Date.now(),
+      };
     }
 
     // Intentional extraction/restoration based on ecosystem health
@@ -602,10 +636,18 @@ export class SimpleAgent implements GameAgent {
       const lastExtraction = this.memory.extractionHistory.get(ecosystemId);
       const extractionCooldown = 3; // Only extract same ecosystem every 3 rounds
       
-      // Restore if ecosystem is unhealthy (below flourish threshold)
-      if (accessibleEcosystem.health <= accessibleEcosystem.flourishThreshold * 0.8 &&
-          this.canRestore(view) &&
-          this.strategy !== "defector") {
+      const builderEmergencyThreshold = accessibleEcosystem.collapseThreshold + 15;
+      const shouldRestore =
+        this.strategy === "cooperator" ||
+        this.strategy === "diplomat" ||
+        (this.strategy === "tit_for_tat" && this.memory.enemies.size === 0)
+          ? accessibleEcosystem.health <= accessibleEcosystem.flourishThreshold
+          : this.strategy === "builder"
+            ? accessibleEcosystem.health <= builderEmergencyThreshold
+            : false;
+
+      // Restore if ecosystem is unhealthy enough for the current strategy.
+      if (shouldRestore && this.canRestore(view)) {
         this.memory.extractionHistory.delete(ecosystemId); // Reset extraction history
         return {
           type: "restore_ecosystem",
@@ -621,11 +663,23 @@ export class SimpleAgent implements GameAgent {
       const isHealthy = accessibleEcosystem.status === "flourishing" || 
                         accessibleEcosystem.health > accessibleEcosystem.flourishThreshold;
       
+      if (this.strategy === "builder" && round <= 6) {
+        return { type: "explore", agentId: this.id, params: {}, round, timestamp: Date.now() };
+      }
+
       if (canExtract || isHealthy) {
         // Determine extraction level based on strategy and ecosystem health
         let extractionLevel: "low" | "medium" | "high" = "low";
         if (isHealthy && this.strategy !== "cooperator" && this.strategy !== "diplomat") {
-          extractionLevel = this.strategy === "defector" ? "high" : "medium";
+          if (this.strategy === "defector") {
+            extractionLevel = "high";
+          } else if (this.strategy === "opportunist") {
+            extractionLevel = "high";
+          } else if (this.strategy === "builder") {
+            extractionLevel = "low";
+          } else {
+            extractionLevel = "medium";
+          }
         }
         
         this.memory.extractionHistory.set(ecosystemId, { level: extractionLevel, round });
@@ -679,16 +733,29 @@ export class SimpleAgent implements GameAgent {
     return { type: "explore", agentId: this.id, params: {}, round, timestamp: Date.now() };
   }
 
-  private decideCrisisContribution(view: ComedyAgentView): Partial<Record<ResourceType, number>> | null {
+  private decideCrisisContribution(view: TragedyAgentView): Partial<Record<ResourceType, number>> | null {
     if (!view.activeCrisis) return null;
     const threshold = view.activeCrisis.threshold;
+    if (this.strategy === "opportunist") {
+      const leader = this.getLeadingAgent(view);
+      const leaderScore = leader ? view.allScores[leader] || 0 : 0;
+      if (leaderScore - view.myVP > 1) return null;
+    }
+
+    const reserve = this.strategy === "cooperator" || this.strategy === "diplomat" ? 0 : 1;
+    const maxPerResource =
+      this.strategy === "cooperator" || this.strategy === "diplomat"
+        ? 3
+        : this.strategy === "tit_for_tat"
+          ? 1
+          : 2;
     const contribution: Partial<Record<ResourceType, number>> = {};
     let totalContrib = 0;
 
     for (const res of RESOURCE_NAMES) {
       const needed = threshold[res] || 0;
-      if (needed > 0 && view.myResources[res] > 1) { // Keep at least 1
-        const amount = Math.min(2, view.myResources[res] - 1, needed);
+      if (needed > 0 && view.myResources[res] > reserve) {
+        const amount = Math.min(maxPerResource, view.myResources[res] - reserve, needed);
         if (amount > 0) {
           contribution[res] = amount;
           totalContrib += amount;
@@ -703,7 +770,7 @@ export class SimpleAgent implements GameAgent {
   // Helpers
   // ============================================================
 
-  private getSurplusResource(view: ComedyAgentView): ResourceType | null {
+  private getSurplusResource(view: TragedyAgentView): ResourceType | null {
     const r = view.myResources;
     let maxRes: ResourceType = "grain";
     let maxVal = 0;
@@ -713,7 +780,7 @@ export class SimpleAgent implements GameAgent {
     return maxVal >= 2 ? maxRes : null;
   }
 
-  private getNeededResource(view: ComedyAgentView): ResourceType | null {
+  private getNeededResource(view: TragedyAgentView): ResourceType | null {
     const r = view.myResources;
     let minRes: ResourceType = "grain";
     let minVal = Infinity;
@@ -723,7 +790,7 @@ export class SimpleAgent implements GameAgent {
     return minVal < 2 ? minRes : null;
   }
 
-  private getLeadingAgent(view: ComedyAgentView): AgentId | null {
+  private getLeadingAgent(view: TragedyAgentView): AgentId | null {
     let maxScore = -1;
     let leader: AgentId | null = null;
     for (const [id, score] of Object.entries(view.allScores)) {
@@ -732,7 +799,7 @@ export class SimpleAgent implements GameAgent {
     return leader;
   }
 
-  private getAccessibleEcosystem(view: ComedyAgentView) {
+  private getAccessibleEcosystem(view: TragedyAgentView) {
     const controlled = new Set<string>();
     const structures = [
       ...view.myStructures.villages,
@@ -744,12 +811,26 @@ export class SimpleAgent implements GameAgent {
     for (const structure of structures) {
       if (structure.regionId) controlled.add(structure.regionId);
     }
-    return view.ecosystemStates
-      .filter((ecosystem) => ecosystem.regionIds.some((regionId) => controlled.has(regionId)))
-      .sort((left, right) => left.health - right.health)[0] || null;
+    const accessible = view.ecosystemStates.filter((ecosystem) =>
+      ecosystem.regionIds.some((regionId) => controlled.has(regionId)),
+    );
+    if (accessible.length === 0) return null;
+
+    const sorted = [...accessible];
+    if (this.strategy === "defector" || this.strategy === "opportunist") {
+      sorted.sort((left, right) => right.health - left.health);
+    } else if (this.strategy === "builder") {
+      sorted.sort((left, right) =>
+        Math.abs(left.health - left.flourishThreshold) - Math.abs(right.health - right.flourishThreshold),
+      );
+    } else {
+      sorted.sort((left, right) => left.health - right.health);
+    }
+
+    return sorted[0] || null;
   }
 
-  private canRestore(view: ComedyAgentView): boolean {
+  private canRestore(view: TragedyAgentView): boolean {
     return (view.myResources.water || 0) >= 1 && (((view.myResources.energy || 0) >= 1) || ((view.myResources.grain || 0) >= 1));
   }
 

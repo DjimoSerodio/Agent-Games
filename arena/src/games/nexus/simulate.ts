@@ -1,5 +1,5 @@
 /**
- * Comedy of the Commons Simulation
+ * Tragedy of the Commons Simulation
  *
  * Run a complete game with simple AI agents for testing and demonstration.
  * Usage: npx tsx src/games/nexus/simulate.ts
@@ -8,7 +8,7 @@
 import { v4 as uuid } from "uuid";
 import { EventBus } from "../../core/event-bus.js";
 import { GameConfig, ArenaEvent } from "../../core/types.js";
-import { ComedyEngine } from "./comedy-engine.js";
+import { TragedyEngine } from "./tragedy-engine.js";
 import { TrustGraph } from "../../trust/trust-graph.js";
 import { SimpleAgent, AgentStrategy } from "../../agents/simple-agent.js";
 
@@ -17,8 +17,8 @@ import { SimpleAgent, AgentStrategy } from "../../agents/simple-agent.js";
 // ============================================================
 
 const GAME_CONFIG: GameConfig = {
-  id: `comedy_${uuid().slice(0, 8)}`,
-  type: "comedy_commons",
+  id: `tragedy_${uuid().slice(0, 8)}`,
+  type: "tragedy_commons",
   maxPlayers: 4,
   minPlayers: 4,
   maxRounds: 25, // Hidden from agents
@@ -34,8 +34,8 @@ const GAME_CONFIG: GameConfig = {
 // Agent strategies to test
 const AGENT_STRATEGIES: { name: string; strategy: AgentStrategy }[] = [
   { name: "Alice_Cooperator", strategy: "cooperator" },
-  { name: "Bob_TitForTat", strategy: "tit_for_tat" },
-  { name: "Charlie_Diplomat", strategy: "diplomat" },
+  { name: "Bob_Builder", strategy: "builder" },
+  { name: "Charlie_Opportunist", strategy: "opportunist" },
   { name: "Dave_Defector", strategy: "defector" },
 ];
 
@@ -45,7 +45,7 @@ const AGENT_STRATEGIES: { name: string; strategy: AgentStrategy }[] = [
 
 async function runSimulation() {
   console.log("╔══════════════════════════════════════════════════╗");
-  console.log("║      COMEDY OF THE COMMONS: WORLD SIM            ║");
+  console.log("║      TRAGEDY OF THE COMMONS: WORLD SIM           ║");
   console.log("║         Coordination Olympiad Prototype          ║");
   console.log("╚══════════════════════════════════════════════════╝");
   console.log();
@@ -140,7 +140,7 @@ async function runSimulation() {
   });
 
   // Create game engine
-  const engine = new ComedyEngine(GAME_CONFIG, eventBus, trustGraph);
+  const engine = new TragedyEngine(GAME_CONFIG, eventBus, trustGraph);
 
   // Create and register agents
   const agents: SimpleAgent[] = [];
