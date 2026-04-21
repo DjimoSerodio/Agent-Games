@@ -1,5 +1,5 @@
 /**
- * Comedy of the Commons Game Types
+ * Tragedy of the Commons Game Types
  *
  * The flagship coordination game: resource trading on a hex grid
  * with trust mechanics, shared crises, and per-move fees.
@@ -335,7 +335,7 @@ export const CRISIS_DEFINITIONS: Record<CrisisType, Omit<CrisisEvent, "contribut
 // Actions
 // ============================================================
 
-export type ComedyActionType =
+export type TragedyActionType =
   | "build_road"
   | "build_village"
   | "upgrade_township"
@@ -354,8 +354,8 @@ export type ComedyActionType =
   | "attack_structure"
   | "pass";
 
-export interface ComedyAction extends Action {
-  type: ComedyActionType;
+export interface TragedyAction extends Action {
+  type: TragedyActionType;
   params: {
     // For building: location
     location?: HexCoord | { hexes: HexCoord[] };
@@ -390,7 +390,7 @@ export interface ComedyAction extends Action {
 // Player State
 // ============================================================
 
-export interface ComedyPlayerState {
+export interface TragedyPlayerState {
   id: AgentId;
   resources: ResourceInventory;
   influence: number;
@@ -556,6 +556,15 @@ export interface BehaviorTag {
   trustDeltaHint?: number;
 }
 
+export interface VisibleBehaviorTag {
+  id: string;
+  round: number;
+  actor: AgentId;
+  kind: BehaviorTagKind;
+  severity: "low" | "medium" | "high";
+  description: string;
+}
+
 export interface CommitmentCandidate {
   id: string;
   messageId: string;
@@ -597,7 +606,7 @@ export interface CommonsHealthSnapshot {
 // Game State
 // ============================================================
 
-export interface ComedyGameState extends GameState {
+export interface TragedyGameState extends GameState {
   // Map
   hexGrid: Map<string, HexTile>; // key = "q,r"
   worldMap: WorldMap;
@@ -605,7 +614,7 @@ export interface ComedyGameState extends GameState {
   edges: HexEdge[];
 
   // Players
-  playerStates: Map<AgentId, ComedyPlayerState>;
+  playerStates: Map<AgentId, TragedyPlayerState>;
 
   // Production
   productionWheel: number[];
@@ -657,7 +666,7 @@ export interface ComedyGameState extends GameState {
 // Agent View (what agents can see)
 // ============================================================
 
-export interface ComedyAgentView {
+export interface TragedyAgentView {
   gameId: GameId;
   round: number;
   phase: string;
@@ -674,7 +683,7 @@ export interface ComedyAgentView {
   myResources: ResourceInventory;
   myInfluence: number;
   myVP: number;
-  myStructures: ComedyPlayerState["structures"];
+  myStructures: TragedyPlayerState["structures"];
 
   // Public info
   allScores: Record<AgentId, number>; // VP is public
@@ -695,6 +704,7 @@ export interface ComedyAgentView {
   // Commitment ledger
   visibleCommitments: CommitmentRecord[];
   visibleAttestations: AttestationRecord[];
+  visibleBehaviorTags: VisibleBehaviorTag[];
 
   // Messages I can see
   messageHistory: import("../../core/types.js").Message[];
@@ -717,6 +727,18 @@ export interface ComedyAgentView {
   };
   cumulativeScores: Record<AgentId, number>; // Cumulative scores across session
 }
+
+// ============================================================
+// Temporary compatibility aliases
+// ============================================================
+
+// These aliases keep the broader Nexus propagation lane compiling while
+// internal modules are migrated from Comedy* to Tragedy* in smaller slices.
+export type ComedyActionType = TragedyActionType;
+export type ComedyAction = TragedyAction;
+export type ComedyPlayerState = TragedyPlayerState;
+export type ComedyGameState = TragedyGameState;
+export type ComedyAgentView = TragedyAgentView;
 
 // ============================================================
 // Tournament / Session State

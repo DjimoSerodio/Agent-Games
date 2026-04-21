@@ -1,9 +1,9 @@
 import { GameConfig } from "../../core/types.js";
-import { CommonsHealthSnapshot, ComedyGameState, PRODUCTION_WHEEL } from "./types.js";
+import { CommonsHealthSnapshot, TragedyGameState, PRODUCTION_WHEEL } from "./types.js";
 import { generateHexGrid, hexKey } from "./hex-grid.js";
-import { createComedyWorldMap, projectWorldMapToHexGrid } from "./world-map.js";
+import { createTragedyWorldMap, projectWorldMapToHexGrid } from "./world-map.js";
 
-export function createInitialComedyState(
+export function createInitialTragedyState(
   config: GameConfig,
   carryoverPrizePool: bigint,
   buildCommonsHealthSnapshot: (
@@ -14,9 +14,9 @@ export function createInitialComedyState(
     slashedPrizePool: bigint,
     carryoverPrizePool: bigint,
   ) => CommonsHealthSnapshot,
-): ComedyGameState {
+): TragedyGameState {
   const mapPlayerCount = Math.max(4, Math.min(12, config.maxPlayers));
-  const worldMap = createComedyWorldMap();
+  const worldMap = createTragedyWorldMap();
   const hexGrid = generateHexGrid(mapPlayerCount);
   const worldGrid = projectWorldMapToHexGrid(worldMap);
   for (const [, worldTile] of worldGrid) {
