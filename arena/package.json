@@ -5,12 +5,14 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:frontend && tsc",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test": "vitest",
     "simulate": "tsx src/games/nexus/simulate.ts",
-    "simulate:nexus": "tsx src/games/nexus/simulate.ts"
+    "simulate:nexus": "tsx src/games/nexus/simulate.ts",
+    "simulate:minimax": "tsx src/games/nexus/simulate-minimax.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
