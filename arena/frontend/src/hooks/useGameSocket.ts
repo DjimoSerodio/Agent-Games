@@ -2,7 +2,56 @@ import { useEffect, useRef } from 'react';
 import { AGENT_COLORS } from '../lib/colors';
 import { getBackendWebSocketUrl } from '../lib/backend';
 import { formatAgentName } from '../lib/format';
-import { useGameStore, type AgentState, type Attestation, type Commitment, type HexTile } from '../store';
+import { useGameStore, type AgentState, type Attestation, type Commitment, type HexTile, type VisibleBehaviorTag } from '../store';
+
+function terrainFromWorldRegion(source: Record<string, unknown>): string {
+  if (typeof source.terrain === 'string' && source.terrain.length > 0) return source.terrain;
+
+  const resource = typeof source.primaryResource === 'string' ? source.primaryResource : '';
+  if (resource === 'grain') return 'plains';
+  if (resource === 'timber') return 'forest';
+  if (resource === 'ore') return 'mountains';
+  if (resource === 'energy') return 'commons';
+  if (resource === 'fish' || resource === 'water') return 'rivers';
+
+  const biome = typeof source.biome === 'string' ? source.biome : '';
+  if (biome === 'volcanic') return 'mountains';
+
+  return 'plains';
+}
+
+function toWelcomeHexTiles(worldMap: Record<string, unknown>): HexTile[] {
+  const regions = Array.isArray(worldMap.regions) ? worldMap.regions : [];
+  return regions.flatMap((region) => {
+    if (!region || typeof region !== 'object') return [];
+    const source = region as Record<string, unknown>;
+    const coord = source.coord && typeof source.coord === 'object' ? (source.coord as Record<string, unknown>) : null;
+    const q = coord ? Number(coord.q) : Number.NaN;
+    const r = coord ? Number(coord.r) : Number.NaN;
+
+    if (!Number.isFinite(q) || !Number.isFinite(r)) return [];
+
+    const anchor = source.anchor && typeof source.anchor === 'object'
+      ? (source.anchor as { x: number; y: number })
+      : undefined;
+
+    return [{
+      q,
+      r,
+      terrain: terrainFromWorldRegion(source),
+      productionNumber: Number(source.productionNumber ?? 0),
+      revealed: true,
+      revealedBy: [],
+      regionId: typeof source.id === 'string' ? source.id : undefined,
+      regionName: typeof source.name === 'string' ? source.name : undefined,
+      biome: typeof source.biome === 'string' ? source.biome : undefined,
+      primaryResource: typeof source.primaryResource === 'string' ? source.primaryResource : undefined,
+      center: anchor,
+      polygon: Array.isArray(source.polygon) ? (source.polygon as Array<{ x: number; y: number }>) : undefined,
+      ecosystemIds: Array.isArray(source.ecosystemIds) ? (source.ecosystemIds as string[]) : undefined,
+    }];
+  });
+}
 
 function toHexTiles(hexes: unknown[]): HexTile[] {
   return hexes.map((hex) => {
@@ -37,6 +86,36 @@ function agentColor(agentOrder: string[], id: string, index: number) {
   return AGENT_COLORS[(colorIndex >= 0 ? colorIndex : index) % AGENT_COLORS.length];
 }
 
+function toVisibleBehaviorTag(source: Record<string, unknown>): VisibleBehaviorTag | null {
+  const id = typeof source.id === 'string' ? source.id : null;
+  const actor = typeof source.actor === 'string' ? source.actor : null;
+  const kind = typeof source.kind === 'string' ? source.kind : null;
+  const severity = typeof source.severity === 'string' ? source.severity : null;
+  const description = typeof source.description === 'string' ? source.description.trim() : null;
+  const round = typeof source.round === 'number' ? source.round : Number(source.round);
+
+  if (!id || !actor || !kind || !severity || !description || !Number.isFinite(round)) {
+    return null;
+  }
+
+  return {
+    id,
+    round,
+    actor,
+    kind,
+    severity,
+    description,
+  };
+}
+
+function toVisibleBehaviorTags(source: unknown[]): VisibleBehaviorTag[] {
+  return source.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const tag = toVisibleBehaviorTag(item as Record<string, unknown>);
+    return tag ? [tag] : [];
+  });
+}
+
 export function useGameSocket() {
   const setConnectionStatus = useGameStore((state) => state.setConnectionStatus);
   const setGameState = useGameStore((state) => state.setGameState);
@@ -68,8 +147,10 @@ export function useGameSocket() {
             if (message.data?.trustGraph) setGameState({ trustMatrix: message.data.trustGraph as { agents: string[]; matrix: number[][] } });
             if (message.data?.worldMap) {
               const worldMap = message.data.worldMap as Record<string, unknown>;
+              const welcomeHexTiles = toWelcomeHexTiles(worldMap);
               setGameState({
                 worldMap,
+                hexGrid: current.hexGrid.length > 0 ? current.hexGrid : welcomeHexTiles,
                 ecosystemStates: Array.isArray(worldMap.ecosystems) ? (worldMap.ecosystems as Array<Record<string, unknown>>) : current.ecosystemStates,
               });
             }
@@ -118,11 +199,9 @@ export function useGameSocket() {
                 agentIdentities: {},
                 attestationReadiness: [],
                 participationReadiness: [],
-                hexGrid: [],
                 productionNumber: 0,
                 wheelPosition: 0,
                 productionWheel: [],
-                ecosystemStates: [],
                 agentOrder: players,
                 agents: nextAgents,
               });
@@ -176,7 +255,7 @@ export function useGameSocket() {
               if (Array.isArray(data.ecosystems)) updates.ecosystemStates = data.ecosystems;
               if (Array.isArray(data.commitments)) updates.commitments = mergeById(current.commitments, data.commitments as Commitment[]);
               if (Array.isArray(data.attestations)) updates.attestations = mergeById(current.attestations, data.attestations as Attestation[]);
-              if (Array.isArray(data.behaviorTags)) updates.behaviorTags = data.behaviorTags as Array<Record<string, unknown>>;
+              if (Array.isArray(data.behaviorTags)) updates.behaviorTags = toVisibleBehaviorTags(data.behaviorTags);
 
               if (data.agentStates && typeof data.agentStates === 'object') {
                 const source = data.agentStates as Record<string, AgentState>;
@@ -290,7 +369,8 @@ export function useGameSocket() {
             }
 
             case 'behavior.tagged': {
-              const tag = data as Record<string, unknown>;
+              const tag = toVisibleBehaviorTag(data as Record<string, unknown>);
+              if (!tag) break;
               const existing = current.behaviorTags.filter((item) => String(item.id) !== String(tag.id));
               setGameState({ behaviorTags: [tag, ...existing] });
               break;

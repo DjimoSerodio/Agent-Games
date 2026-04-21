@@ -63,6 +63,15 @@ export interface Attestation {
   weight?: number;
 }
 
+export interface VisibleBehaviorTag {
+  id: string;
+  round: number;
+  actor: string;
+  kind: string;
+  severity: string;
+  description: string;
+}
+
 export interface CrisisState {
   name?: string;
   type?: string;
@@ -138,7 +147,7 @@ export interface GameState {
   ecosystemStates: Array<Record<string, unknown>>;
   commitments: Commitment[];
   attestations: Attestation[];
-  behaviorTags: Array<Record<string, unknown>>;
+  behaviorTags: VisibleBehaviorTag[];
   trustMatrix: { agents: string[]; matrix: number[][] } | null;
   winnerId: string | null;
   agentIdentities: Record<string, AgentIdentity>;
