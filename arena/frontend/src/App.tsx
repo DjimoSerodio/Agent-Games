@@ -20,7 +20,7 @@ function App() {
 
       {/* Row 1: World Board (8 cols) + Power Table (4 cols) */}
       <div className="mt-5 grid grid-cols-12 gap-8 items-start max-[1500px]:grid-cols-1">
-        <section className="col-span-9 max-[1500px]:col-auto border border-[var(--color-line)] rounded-[var(--radius-xl)] bg-gradient-to-b from-[rgba(12,24,36,0.92)] to-[rgba(8,16,24,0.86)] shadow-[var(--shadow)] backdrop-blur-[16px]">
+        <section className="col-span-9 max-[1500px]:col-auto border border-[var(--color-line)] rounded-[var(--radius-xl)] overflow-hidden bg-gradient-to-b from-[rgba(12,24,36,0.92)] to-[rgba(8,16,24,0.86)] shadow-[var(--shadow)] backdrop-blur-[16px]">
           <div className="flex justify-between items-start gap-5 p-6 px-7 border-b border-[var(--color-line)] bg-gradient-to-b from-[rgba(24,40,56,0.86)] to-[rgba(10,18,28,0.48)] max-[1500px]:flex-col max-[1500px]:items-start">
             <div>
               <div className="font-mono text-[10px] tracking-[0.24em] uppercase text-[var(--color-text-soft)] pl-1">Living Board</div>
@@ -31,8 +31,8 @@ function App() {
             </div>
           </div>
 
-          <div className="p-7 grid grid-cols-[minmax(0,1fr)_minmax(280px,320px)] gap-7 max-[1500px]:grid-cols-1 items-start max-h-[640px] overflow-hidden">
-            <div className="relative min-h-[640px]">
+          <div className="p-7 grid grid-cols-[minmax(0,1fr)_minmax(280px,320px)] gap-7 max-[1500px]:grid-cols-1 items-start">
+            <div className="relative min-h-[640px] flex flex-col gap-4">
               <GameBoard />
               <CrisisBanner />
             </div>
