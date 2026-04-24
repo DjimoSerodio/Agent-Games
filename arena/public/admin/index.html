@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Comedy of the Commons Admin Dashboard</title>
+  <title>Tragedy of the Commons Admin Dashboard</title>
   <style>
     :root {
       --bg: #0d1117;
@@ -262,11 +262,66 @@
       padding: 40px;
       color: var(--text-dim);
     }
+
+    .trace-panel {
+      margin-top: 16px;
+      display: grid;
+      gap: 10px;
+    }
+    .trace-entry {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg2);
+      padding: 10px;
+    }
+    .trace-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .trace-phase {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--bg);
+      background: var(--accent);
+    }
+    .trace-phase.action { background: var(--green); }
+    .trace-phase.reflection { background: var(--orange); }
+    .trace-copy {
+      display: grid;
+      gap: 8px;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .trace-copy strong {
+      display: block;
+      margin-bottom: 2px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+    }
+    .trace-inline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--text-dim);
+      font-size: 11px;
+    }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>COMEDY ADMIN</h1>
+    <h1>TRAGEDY ADMIN</h1>
     <div class="status">
       <span>Events: <span class="value" id="eventCount">0</span></span>
       <span>Agents: <span class="value" id="agentCount">0</span></span>
@@ -361,6 +416,8 @@
     // ============================================================
     const events = [];
     const agents = {};
+    const agentLogs = {};
+    const agentLogKeys = {};
     let currentFilter = 'all';
     let selectedAgent = null;
     let ws = null;
@@ -564,16 +621,118 @@
       }
     }
 
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function renderTraceEntry(entry) {
+      const data = entry.data || {};
+      const phaseClass = entry.phase === 'action' ? 'action' : entry.phase === 'reflection' ? 'reflection' : 'negotiation';
+      const api = data.api;
+      return `
+        <article class="trace-entry">
+          <div class="trace-meta">
+            <span class="trace-phase ${phaseClass}">${escapeHtml(entry.phase)}</span>
+            <span>Round ${escapeHtml(String(entry.round ?? 0))}</span>
+            <span>${escapeHtml(entry.type || 'event')}</span>
+            <span>${escapeHtml(new Date(entry.timestamp).toLocaleTimeString())}</span>
+          </div>
+          <div class="trace-copy">
+            <div>
+              <strong>Prompt Summary</strong>
+              <div>${escapeHtml(data.promptSummary || 'No prompt summary captured.')}</div>
+            </div>
+            <div>
+              <strong>Response Summary</strong>
+              <div>${escapeHtml(data.responseSummary || data.error || 'No response summary captured.')}</div>
+            </div>
+            ${api ? `
+              <div class="trace-inline">
+                <span>Model: ${escapeHtml(api.model || 'unknown')}</span>
+                <span>Action: ${escapeHtml(api.action || api.method || 'call')}</span>
+                <span>In: ${escapeHtml(String(api.inputTokens ?? 0))}</span>
+                <span>Out: ${escapeHtml(String(api.outputTokens ?? 0))}</span>
+                <span>Latency: ${escapeHtml(String(api.latencyMs ?? 0))}ms</span>
+              </div>
+            ` : ''}
+          </div>
+        </article>
+      `;
+    }
+
+    function addAgentLog(entry) {
+      const dedupeKey = JSON.stringify([
+        entry.agentId,
+        entry.timestamp,
+        entry.round,
+        entry.phase,
+        entry.type,
+        entry.data?.responseSummary || '',
+      ]);
+
+      if (!agentLogKeys[entry.agentId]) {
+        agentLogKeys[entry.agentId] = new Set();
+      }
+      if (agentLogKeys[entry.agentId].has(dedupeKey)) {
+        return;
+      }
+
+      if (!agentLogs[entry.agentId]) {
+        agentLogs[entry.agentId] = [];
+      }
+      agentLogKeys[entry.agentId].add(dedupeKey);
+      agentLogs[entry.agentId].push(entry);
+
+      if (!agents[entry.agentId]) {
+        agents[entry.agentId] = {
+          id: entry.agentId,
+          name: entry.agentName || entry.agentId.slice(0, 8),
+          strategy: 'LLM',
+        };
+        updateAgentList();
+        document.getElementById('agentCount').textContent = Object.keys(agents).length;
+      }
+
+      if (selectedAgent === entry.agentId) {
+        renderAgentDetail(entry.agentId);
+      }
+    }
+
+    async function fetchAgentLog(id) {
+      try {
+        const response = await fetch(`/api/agents/${id}/log`);
+        if (!response.ok) return;
+        const payload = await response.json();
+        agentLogs[id] = [];
+        agentLogKeys[id] = new Set();
+        for (const entry of Array.isArray(payload.entries) ? payload.entries : []) {
+          addAgentLog(entry);
+        }
+        if (selectedAgent === id) {
+          renderAgentDetail(id);
+        }
+      } catch {
+        // Ignore transient fetch failures.
+      }
+    }
+
     function selectAgent(id) {
       selectedAgent = id;
       updateAgentList();
       switchTab('agent');
+      fetchAgentLog(id);
       renderAgentDetail(id);
     }
 
     function renderAgentDetail(id) {
       const agent = agents[id];
       const detail = document.getElementById('agentDetail');
+      const traceEntries = agentLogs[id] || [];
 
       // Find this agent's events
       const agentEvents = events.filter(e => {
@@ -591,7 +750,7 @@
         .filter(Boolean)
         .pop();
 
-      let html = `<h2 style="margin-bottom: 12px;">${agent?.name || id.slice(0, 8)}</h2>`;
+      let html = `<h2 style="margin-bottom: 12px;">${escapeHtml(agent?.name || id.slice(0, 8))}</h2>`;
 
       if (latestState) {
         html += `
@@ -606,6 +765,17 @@
           <p>VP: <strong>${latestState.vp}</strong> | Influence: <strong>${latestState.influence}</strong> | Roads: <strong>${latestState.longestRoad}</strong></p>
           <p>Settlements: ${latestState.structures?.settlements || 0} | Cities: ${latestState.structures?.cities || 0} | Beacons: ${latestState.structures?.beacons || 0}</p>
         `;
+      }
+
+      html += `<h3 style="margin-top: 16px; color: var(--text-dim); font-size: 11px; text-transform: uppercase;">MiniMax Inspector (${traceEntries.length} entries)</h3>`;
+      if (traceEntries.length === 0) {
+        html += '<div class="empty-state" style="padding: 24px 0;">No LLM trace entries yet.</div>';
+      } else {
+        html += '<div class="trace-panel">';
+        for (const entry of traceEntries.slice(-18).reverse()) {
+          html += renderTraceEntry(entry);
+        }
+        html += '</div>';
       }
 
       html += `<h3 style="margin-top: 16px; color: var(--text-dim); font-size: 11px; text-transform: uppercase;">Activity (${agentEvents.length} events)</h3>`;
@@ -659,7 +829,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `comedy-admin-${Date.now()}.json`;
+      a.download = `tragedy-admin-${Date.now()}.json`;
       a.click();
       URL.revokeObjectURL(url);
     }
