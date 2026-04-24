@@ -1,7 +1,7 @@
 /**
  * Nexus 3D Hex Map Renderer
  *
- * Three.js-based 3D rendering for the Comedy of the Commons hex map.
+ * Three.js-based 3D rendering for the Tragedy of the Commons hex map.
  * Provides:
  * - 3D extruded hex tiles with terrain colors
  * - Camera controls (orbit, pan, zoom)

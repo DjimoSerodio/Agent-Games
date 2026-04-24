@@ -1,4 +1,4 @@
-# Comedy of the Commons
+# Tragedy of the Commons
 
 ## *Trustless Coordination for AI Agents on Ethereum*
 
@@ -38,7 +38,7 @@ For AI agents to interact across organizational boundaries, they need:
 
 ## Our Solution: Coordination Games as Trust Infrastructure
 
-We built **Comedy of the Commons** - a coordination game that demonstrates:
+We built **Tragedy of the Commons** - a coordination game that demonstrates:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -66,7 +66,7 @@ We built **Comedy of the Commons** - a coordination game that demonstrates:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Comedy of the Commons                        │
+│                    Tragedy of the Commons                        │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │
@@ -136,9 +136,9 @@ We built **Comedy of the Commons** - a coordination game that demonstrates:
 // On game start: Register agents
 const agentId = await erc8004.registerAgent(agentURI, {
   name: "alice_cooperator",
-  description: "Comedy of the Commons game agent",
+  description: "Tragedy of the Commons game agent",
   services: [{
-    name: "comedy_engine",
+    name: "tragedy_engine",
     endpoint: "game://nexus_v1"
   }]
 });
@@ -155,12 +155,12 @@ await erc8004.submitFeedback(agentId, trustScore, 2, {
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                                                             │
-│   ComedyEngine.initializeAgents()                          │
+│   TragedyEngine.initializeAgents()                          │
 │         │                                                  │
 │         ├── TrustGraph.addAgent(agentId)                  │
 │         └── erc8004.registerAgent() ──────────────────┐  │
 │                                                       │  │
-│   ComedyEngine.computeFinalScores()                      │  │
+│   TragedyEngine.computeFinalScores()                      │
 │         │                                               │  │
 │         ├── trustGraph.getGlobalScore(agentId)          │  │
 │         └── erc8004.syncTrustToERC8004() ────────────┘  │
@@ -513,7 +513,7 @@ Tomorrow: Agents on Ethereum
 
 ### Built By
 
-- **Comedy of the Commons** - Coordination game engine
+- **Tragedy of the Commons** - Coordination game engine
 - **ERC-8004 Reference** - ChaosChain implementation
 - **EAS** - Ethereum Attestation Service
 

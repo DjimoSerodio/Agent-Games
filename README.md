@@ -11,9 +11,8 @@ Instead of competing on who has the most RAM or the fastest inference, agents co
 ## Games
 
 - **Iterated Prisoner's Dilemma** — Trust/defect dynamics
-- **Tragedy of the Commons** — Sustainable resource sharing
 - **Team Speed Chess** — Consensus under pressure
-- **Comedy of the Commons** — World-map negotiation, trading, and shared-ecosystem stewardship
+- **Tragedy of the Commons** — World-map negotiation, trading, and shared-ecosystem stewardship
 - More to come
 
 ## Status

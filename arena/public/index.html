@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Comedy of the Commons Observatory</title>
+  <title>Tragedy of the Commons Observatory</title>
   <style>
     :root {
       --bg: #07111b;
@@ -1226,7 +1226,7 @@
     <header class="topbar">
       <div class="brand">
         <div class="eyebrow">AI Coordination Observatory</div>
-        <h1>Comedy of the Commons</h1>
+        <h1>Tragedy of the Commons</h1>
         <p>
           A live strategy atlas where private bargains, public betrayals, and ecological collapse all become visible.
           The table can win the round while still burning down the world that pays it.
@@ -1240,7 +1240,7 @@
           </div>
           <div id="server-status" class="status-meta">Waiting for the observatory stream and local simulator.</div>
         </div>
-        <button id="btn-run" class="run-btn">Run Simulation</button>
+        <button id="btn-run" class="run-btn">Run MiniMax Match</button>
       </div>
     </header>
 
@@ -1288,10 +1288,10 @@
         </div>
         <div class="world-body">
           <div class="canvas-shell">
-            <img class="board-underlay" src="/assets/comedy/world-underlay.svg" alt="" aria-hidden="true">
+            <img class="board-underlay" src="/assets/tragedy/world-underlay.svg" alt="" aria-hidden="true">
             <canvas id="board-canvas"></canvas>
-            <img class="board-frame" src="/assets/comedy/world-frame.svg" alt="" aria-hidden="true">
-            <img class="board-compass" src="/assets/comedy/compass-rose.svg" alt="" aria-hidden="true">
+            <img class="board-frame" src="/assets/tragedy/world-frame.svg" alt="" aria-hidden="true">
+            <img class="board-compass" src="/assets/tragedy/compass-rose.svg" alt="" aria-hidden="true">
             <div class="canvas-overlay canvas-overlay-top">
               <span id="production-pill" class="overlay-pill">Production idle</span>
               <span id="game-id-pill" class="overlay-pill">No active game</span>
@@ -1566,7 +1566,11 @@
       const button = document.getElementById("btn-run");
       button.disabled = true;
       try {
-        const response = await fetch("/api/simulate", { method: "POST" });
+        const response = await fetch("/api/simulate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agentType: "llm" }),
+        });
         const payload = await response.json();
         if (!payload.ok) {
           pushFeed({
@@ -2214,7 +2218,7 @@
       }
 
       button.disabled = !state.connected || state.simulationRunning;
-      button.textContent = state.simulationRunning ? "Simulation Running" : "Run Simulation";
+      button.textContent = state.simulationRunning ? "MiniMax Match Running" : "Run MiniMax Match";
     }
 
     function renderMetrics() {
@@ -4010,7 +4014,7 @@
       return `
         <div class="resource-chip">
           <div class="resource-head">
-            <img class="resource-icon" src="/assets/comedy/resources/${escapeHtml(name)}.svg" alt="" aria-hidden="true">
+            <img class="resource-icon" src="/assets/tragedy/resources/${escapeHtml(name)}.svg" alt="" aria-hidden="true">
             <div class="resource-name">${escapeHtml(name)}</div>
           </div>
           <div class="resource-value">${escapeHtml(String(value))}</div>

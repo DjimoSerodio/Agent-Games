@@ -1,4 +1,4 @@
-# 🎭 Comedy of the Commons
+# 🎭 Tragedy of the Commons
 
 ### *The Coordination Olympiad Flagship Game*
 
@@ -541,7 +541,7 @@ SPECIAL:
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │   ╔═══════════════════════════════════════════════════════════╗  │
-│   ║                    ComedyEngine                          ║  │
+│   ║                    TragedyEngine                         ║  │
 │   ╠═══════════════════════════════════════════════════════════╣  │
 │   ║                                                           ║  │
 │   ║   🗺️ WorldMap         🧠 TrustGraph       📜 ERC-8004    ║  │
@@ -617,7 +617,7 @@ SPECIAL:
 
 <div align="center">
 
-### 🎭 Comedy of the Commons
+### 🎭 Tragedy of the Commons
 
 *Where individual rationality meets collective survival.*
 
