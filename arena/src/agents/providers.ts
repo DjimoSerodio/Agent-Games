@@ -1,11 +1,10 @@
 /**
  * LLM Provider abstraction for the Coordination Olympiad Arena.
  *
- * Allows swapping between Anthropic (Claude), Minimax (OpenAI-compatible),
- * and any other OpenAI-compatible provider.
+ * Allows swapping between Anthropic (Claude) and MiniMax.
  */
 
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 
 // ---------------------------------------------------------------------------
 // Provider interface
@@ -35,6 +34,11 @@ export interface LLMProviderOptions {
   maxTokens?: number;
 }
 
+export interface ProviderModels {
+  fast: string;
+  smart: string;
+}
+
 export interface LLMProvider {
   complete(opts: {
     model: string;
@@ -42,6 +46,7 @@ export interface LLMProvider {
     userMessage: string;
     tools: ProviderTool[];
   }): Promise<LLMResponse>;
+  getModels(): ProviderModels;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,10 +68,6 @@ export class AnthropicProvider implements LLMProvider {
     userMessage: string;
     tools: ProviderTool[];
   }): Promise<LLMResponse> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SDK = await import("@anthropic-ai/sdk") as any;
-    const Anthropic = SDK.default ?? SDK;
-
     const client = new Anthropic({ apiKey: this.apiKey });
 
     const anthropicTools = opts.tools.map((t) => ({
@@ -101,14 +102,21 @@ export class AnthropicProvider implements LLMProvider {
 
     return { toolCalls, raw: message };
   }
+
+  getModels(): ProviderModels {
+    return {
+      fast: "claude-haiku-4-20250414",
+      smart: "claude-sonnet-4-20250514",
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Minimax provider — OpenAI-compatible API
+// MiniMax provider — Anthropic-compatible API
 // ---------------------------------------------------------------------------
 
 export interface MinimaxProviderOptions extends LLMProviderOptions {
-  /** Defaults to "https://api.minimax.chat/v1" */
+  /** Defaults to "https://api.minimax.io/anthropic" */
   baseURL?: string;
 }
 
@@ -119,7 +127,7 @@ export class MinimaxProvider implements LLMProvider {
 
   constructor(apiKey: string, options: MinimaxProviderOptions = {}) {
     this.apiKey = apiKey;
-    this.baseURL = options.baseURL ?? "https://api.minimax.chat/v1";
+    this.baseURL = options.baseURL ?? "https://api.minimax.io/anthropic";
     this.maxTokens = options.maxTokens ?? 1024;
   }
 
@@ -129,67 +137,52 @@ export class MinimaxProvider implements LLMProvider {
     userMessage: string;
     tools: ProviderTool[];
   }): Promise<LLMResponse> {
-    const client = new OpenAI({
-      apiKey: this.apiKey,
+    const client = new Anthropic({
+      authToken: this.apiKey,
       baseURL: this.baseURL,
       dangerouslyAllowBrowser: false,
     });
 
-    const openaiTools = opts.tools.map((t) => ({
-      type: "function" as const,
-      function: {
-        name: t.name,
-        description: t.description,
-        parameters: t.input_schema as {
-          type: "object";
-          properties: Record<string, unknown>;
-          required?: string[];
-        },
-      },
+    const anthropicTools = opts.tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.input_schema,
     }));
 
-    const message = await client.chat.completions.create({
+    const message = await client.messages.create({
       model: opts.model,
       max_tokens: this.maxTokens,
+      system: opts.system,
       temperature: 0.7,
-      tools: openaiTools,
-      tool_choice: "auto",
-      messages: [
-        { role: "system", content: opts.system },
-        { role: "user", content: opts.userMessage },
-      ],
+      tools: anthropicTools,
+      tool_choice: { type: "any" },
+      messages: [{ role: "user", content: opts.userMessage }],
     });
 
-    const rawChoice = message.choices[0];
-    if (!rawChoice) throw new Error("Minimax returned no choices");
-
     const toolCalls: ToolCall[] = [];
-    const rawMessage = rawChoice.message as {
-      tool_calls?: Array<{
-        function?: { name?: string; arguments?: string };
-      }>;
-    };
+    const contentBlocks = (message.content ?? []) as Array<{
+      type?: string;
+      name?: string;
+      input?: Record<string, unknown>;
+    }>;
 
-    if (rawMessage.tool_calls) {
-      for (const tc of rawMessage.tool_calls) {
-        if (tc.function) {
-          let input: Record<string, unknown> = {};
-          try {
-            if (tc.function.arguments) {
-              input = JSON.parse(tc.function.arguments);
-            }
-          } catch {
-            // use empty input on parse failure
-          }
-          toolCalls.push({
-            name: tc.function.name ?? "",
-            input,
-          });
-        }
+    for (const block of contentBlocks) {
+      if (block.type === "tool_use") {
+        toolCalls.push({
+          name: block.name ?? "",
+          input: block.input ?? {},
+        });
       }
     }
 
     return { toolCalls, raw: message };
+  }
+
+  getModels(): ProviderModels {
+    return {
+      fast: "MiniMax-M2.7-highspeed",
+      smart: "MiniMax-M2.7",
+    };
   }
 }
 

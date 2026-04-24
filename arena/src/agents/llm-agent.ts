@@ -9,6 +9,7 @@ import { readFileSync } from "fs";
 import { v4 as uuid } from "uuid";
 import {
   LLMProvider,
+  ProviderModels,
   createProvider,
   ProviderTool,
   ToolCall,
@@ -23,19 +24,18 @@ import {
   RoundResult,
 } from "../core/types.js";
 import {
-  ComedyAgentView,
-  ComedyAction,
-  ComedyActionType,
+  TragedyAgentView,
+  TragedyAction,
+  TragedyActionType,
   ResourceType,
   RESOURCE_NAMES,
 } from "../games/nexus/types.js";
+import type { AgentApiMeta, AgentLogEntry, AgentLogPhase, AgentLogType } from "../admin/agent-log.js";
 
 // ============================================================
 // Constants
 // ============================================================
 
-const MODEL_FAST = "claude-haiku-4-20250414";
-const MODEL_SMART = "claude-sonnet-4-20250514";
 const MAX_MEMORY_ROUNDS = 5;
 
 // ============================================================
@@ -143,7 +143,7 @@ interface RoundMemory {
   trustUpdates: Record<string, number>;
 }
 
-interface ApiCallLog {
+export interface ApiCallLog {
   timestamp: number;
   method: string;
   model: string;
@@ -151,6 +151,12 @@ interface ApiCallLog {
   outputTokens: number;
   latencyMs: number;
   action: string;
+}
+
+export interface LLMAgentOptions {
+  provider?: LLMProvider;
+  name?: string;
+  onLogEntry?: (entry: AgentLogEntry) => void;
 }
 
 // ============================================================
@@ -162,18 +168,20 @@ export class LLMAgent implements GameAgent {
   identity: AgentIdentity;
 
   private provider: LLMProvider;
+  private models: ProviderModels;
   private persona: string;
   private config: GameConfig | null = null;
   private memory: RoundMemory[] = [];
   private currentRound = 0;
   private trustMap: Record<AgentId, number> = {};
   private apiLog: ApiCallLog[] = [];
+  private onLogEntry?: (entry: AgentLogEntry) => void;
 
   private static readonly GAME_RULES_SUMMARY = `
-# Comedy of the Commons — Coordination Game Rules
+# Tragedy of the Commons — Coordination Game Rules
 
 ## Overview
-Comedy of the Commons is a multiplayer resource-trading strategy game on a living world map. Players gather regional resources, build structures, trade with each other, steward shared ecosystems, and collectively respond to crises. Victory points (VP) determine the winner, but the commons determines how much prize money survives.
+Tragedy of the Commons is a multiplayer resource-trading strategy game on a living world map. Players gather regional resources, build structures, trade with each other, steward shared ecosystems, and collectively respond to crises. Victory points (VP) determine the winner, but the commons determines how much prize money survives.
 
 ## Resources
 Six types: Grain, Timber, Ore, Fish, Water, Energy. Max 14 total resources per player.
@@ -198,18 +206,20 @@ Public. Keeping promises builds trust. Breaking deals and sabotage erode it.
 Hidden rounds. Highest VP wins. Commons health determines prize survival.
 `;
 
-  constructor(personaPath: string, agentId: string, provider?: LLMProvider) {
+  constructor(personaPath: string, agentId: string, options: LLMAgentOptions = {}) {
     this.id = agentId;
     this.identity = {
       id: agentId,
-      name: `LLM_${agentId.slice(0, 6)}`,
+      name: options.name || `LLM_${agentId.slice(0, 6)}`,
       address: `0x${agentId.replace(/-/g, "").slice(0, 40).padEnd(40, "0")}`,
       skillsHash: "",
       registeredAt: Date.now(),
     };
 
     this.persona = readFileSync(personaPath, "utf-8");
-    this.provider = provider ?? createProvider();
+    this.provider = options.provider ?? createProvider();
+    this.models = this.provider.getModels();
+    this.onLogEntry = options.onLogEntry;
   }
 
   // ============================================================
@@ -222,17 +232,18 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
     this.memory = [];
     this.trustMap = {};
     this.currentRound = 0;
+    this.apiLog = [];
   }
 
   async negotiate(state: unknown, incomingMessages: Message[], round: number): Promise<Message[]> {
     this.currentRound = round;
-    const view = state as ComedyAgentView;
+    const view = state as TragedyAgentView;
     const systemPrompt = this.buildSystemPrompt("negotiation");
     const userPrompt = this.buildNegotiationPrompt(view, incomingMessages);
 
     try {
       const result = await this.callProvider({
-        model: MODEL_SMART,
+        model: this.models.smart,
         system: systemPrompt,
         userMessage: userPrompt,
         tools: [SEND_MESSAGES_TOOL],
@@ -243,28 +254,53 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
         messages: Array<{ recipient: string; content: string; type: "public" | "private" }>;
       }>(result, "send_messages");
 
-      if (!toolInput?.messages) return [];
+      if (!toolInput?.messages) {
+        this.emitLogEntry({
+          round,
+          phase: "negotiation",
+          type: "message",
+          promptSummary: this.summarizePrompt(userPrompt),
+          responseSummary: "No negotiation messages were returned.",
+          api: this.toApiMeta(this.getLatestApiCall()),
+          messages: [],
+        });
+        return [];
+      }
 
       const messages = toolInput.messages.map((msg) =>
         this.makeMessage(view.gameId, msg.recipient, msg.content, msg.type),
       );
       this.updateMemoryMessages(round, incomingMessages, messages);
+      this.emitLogEntry({
+        round,
+        phase: "negotiation",
+        type: "message",
+        promptSummary: this.summarizePrompt(userPrompt),
+        responseSummary: this.summarizeMessages(messages),
+        api: this.toApiMeta(this.getLatestApiCall()),
+        messages: messages.map((message) => ({
+          recipient: String(message.recipient),
+          content: message.content,
+          type: message.type,
+        })),
+      });
       return messages;
     } catch (err) {
       console.error(`[LLMAgent ${this.id}] negotiate error:`, err);
+      this.emitErrorLog(round, "negotiation", err, userPrompt);
       return [];
     }
   }
 
   async act(state: unknown, round: number, _legalActions: Action[]): Promise<Action[]> {
     this.currentRound = round;
-    const view = state as ComedyAgentView;
+    const view = state as TragedyAgentView;
     const systemPrompt = this.buildSystemPrompt("action");
     const userPrompt = this.buildActionPrompt(view);
 
     try {
       const result = await this.callProvider({
-        model: MODEL_FAST,
+        model: this.models.fast,
         system: systemPrompt,
         userMessage: userPrompt,
         tools: [SUBMIT_ACTIONS_TOOL],
@@ -275,30 +311,79 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
         actions: Array<{ type: string; params: Record<string, unknown> }>;
       }>(result, "submit_actions");
 
-      if (!toolInput?.actions?.length) return this.fallbackActions(round);
+      if (!toolInput?.actions?.length) {
+        const fallback = this.fallbackActions(round);
+        this.updateMemoryActions(round, fallback);
+        this.emitLogEntry({
+          round,
+          phase: "action",
+          type: "action",
+          promptSummary: this.summarizePrompt(userPrompt),
+          responseSummary: this.summarizeActions(fallback),
+          api: this.toApiMeta(this.getLatestApiCall()),
+          actions: fallback.map((action) => ({ type: action.type, params: action.params })),
+        });
+        return fallback;
+      }
 
       const actions = this.parseActions(toolInput.actions, round);
       if (actions.length === 0) {
         const retryActions = await this.retryAction(view, round);
-        if (retryActions.length > 0) return retryActions;
-        return this.fallbackActions(round);
+        if (retryActions.length > 0) {
+          this.updateMemoryActions(round, retryActions);
+          this.emitLogEntry({
+            round,
+            phase: "action",
+            type: "action",
+            promptSummary: this.summarizePrompt(userPrompt),
+            responseSummary: this.summarizeActions(retryActions),
+            api: this.toApiMeta(this.getLatestApiCall()),
+            actions: retryActions.map((action) => ({ type: action.type, params: action.params })),
+          });
+          return retryActions;
+        }
+        const fallback = this.fallbackActions(round);
+        this.updateMemoryActions(round, fallback);
+        this.emitLogEntry({
+          round,
+          phase: "action",
+          type: "action",
+          promptSummary: this.summarizePrompt(userPrompt),
+          responseSummary: this.summarizeActions(fallback),
+          api: this.toApiMeta(this.getLatestApiCall()),
+          actions: fallback.map((action) => ({ type: action.type, params: action.params })),
+        });
+        return fallback;
       }
 
       this.updateMemoryActions(round, actions);
+      this.emitLogEntry({
+        round,
+        phase: "action",
+        type: "action",
+        promptSummary: this.summarizePrompt(userPrompt),
+        responseSummary: this.summarizeActions(actions),
+        api: this.toApiMeta(this.getLatestApiCall()),
+        actions: actions.map((action) => ({ type: action.type, params: action.params })),
+      });
       return actions;
     } catch (err) {
       console.error(`[LLMAgent ${this.id}] act error:`, err);
-      return this.fallbackActions(round);
+      this.emitErrorLog(round, "action", err, userPrompt);
+      const fallback = this.fallbackActions(round);
+      this.updateMemoryActions(round, fallback);
+      return fallback;
     }
   }
 
   async reflect(results: RoundResult): Promise<void> {
+    this.currentRound = results.round;
     const systemPrompt = this.buildSystemPrompt("reflection");
     const userPrompt = this.buildReflectPrompt(results);
 
     try {
       const result = await this.callProvider({
-        model: MODEL_SMART,
+        model: this.models.smart,
         system: systemPrompt,
         userMessage: userPrompt,
         tools: [REFLECT_SUMMARY_TOOL],
@@ -322,9 +407,33 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
           toolInput.observations,
           toolInput.trust_updates,
         );
+        this.emitLogEntry({
+          round: results.round,
+          phase: "reflection",
+          type: "decision",
+          promptSummary: this.summarizePrompt(userPrompt),
+          responseSummary: this.summarizeText(
+            `${toolInput.observations} Strategy: ${toolInput.strategy_adjustment}`,
+            260,
+          ),
+          api: this.toApiMeta(this.getLatestApiCall()),
+          observations: toolInput.observations,
+          trustUpdates: toolInput.trust_updates,
+          strategyAdjustment: toolInput.strategy_adjustment,
+        });
+      } else {
+        this.emitLogEntry({
+          round: results.round,
+          phase: "reflection",
+          type: "decision",
+          promptSummary: this.summarizePrompt(userPrompt),
+          responseSummary: "No reflection summary was returned.",
+          api: this.toApiMeta(this.getLatestApiCall()),
+        });
       }
     } catch (err) {
       console.error(`[LLMAgent ${this.id}] reflect error:`, err);
+      this.emitErrorLog(results.round, "reflection", err, userPrompt);
     }
 
     this.trimMemory();
@@ -390,7 +499,7 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
 
   private buildSystemPrompt(phase: string): string {
     return [
-      "You are an AI agent playing Comedy of the Commons.",
+      "You are an AI agent playing Tragedy of the Commons.",
       "",
       "## Game Rules",
       LLMAgent.GAME_RULES_SUMMARY,
@@ -406,7 +515,7 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
     ].join("\n");
   }
 
-  private buildNegotiationPrompt(view: ComedyAgentView, incomingMessages: Message[]): string {
+  private buildNegotiationPrompt(view: TragedyAgentView, incomingMessages: Message[]): string {
     const parts: string[] = [
       `## Round ${view.round} — Negotiation Phase`,
       "",
@@ -460,7 +569,7 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
     return parts.join("\n");
   }
 
-  private buildActionPrompt(view: ComedyAgentView): string {
+  private buildActionPrompt(view: TragedyAgentView): string {
     const r = view.myResources;
     const affordability: string[] = [];
     if (r.grain >= 1 && r.timber >= 1) affordability.push("build_road (1G+1T)");
@@ -543,11 +652,11 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
     "extract_commons", "restore_ecosystem", "sabotage", "crisis_contribute", "pass",
   ]);
 
-  private parseActions(raw: Array<{ type: string; params: Record<string, unknown> }>, round: number): ComedyAction[] {
+  private parseActions(raw: Array<{ type: string; params: Record<string, unknown> }>, round: number): TragedyAction[] {
     return raw
       .filter((item) => this.VALID_ACTION_TYPES.has(item.type))
       .map((item) => ({
-        type: item.type as ComedyActionType,
+        type: item.type as TragedyActionType,
         agentId: this.id,
         params: item.params ?? {},
         round,
@@ -555,17 +664,17 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
       }));
   }
 
-  private fallbackActions(round: number): ComedyAction[] {
+  private fallbackActions(round: number): TragedyAction[] {
     return [
       { type: "explore", agentId: this.id, params: {}, round, timestamp: Date.now() },
       { type: "pass", agentId: this.id, params: {}, round, timestamp: Date.now() },
     ];
   }
 
-  private async retryAction(view: ComedyAgentView, round: number): Promise<ComedyAction[]> {
+  private async retryAction(view: TragedyAgentView, round: number): Promise<TragedyAction[]> {
     try {
       const result = await this.callProvider({
-        model: MODEL_FAST,
+        model: this.models.fast,
         system: this.buildSystemPrompt("action"),
         userMessage: [
           "Your previous action response was invalid. Use submit_actions with valid action types.",
@@ -594,7 +703,7 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
     e.messagesSent = sent.map((m) => ({ recipient: String(m.recipient), content: m.content, type: m.type }));
   }
 
-  private updateMemoryActions(round: number, actions: ComedyAction[]): void {
+  private updateMemoryActions(round: number, actions: TragedyAction[]): void {
     this.getOrCreateMemoryEntry(round).myActions = actions.map((a) => ({ type: a.type, params: a.params }));
   }
 
@@ -637,6 +746,104 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
     return { id: uuid(), gameId, round: this.currentRound, phase: "negotiation", sender: this.id, recipient: recipient as AgentId | "broadcast", content, type, timestamp: Date.now() };
   }
 
+  private emitLogEntry(params: {
+    round: number;
+    phase: AgentLogPhase;
+    type: AgentLogType;
+    promptSummary?: string;
+    responseSummary?: string;
+    api?: AgentApiMeta;
+    messages?: Array<{ recipient: string; content: string; type: string }>;
+    actions?: Array<{ type: string; params: Record<string, unknown> }>;
+    observations?: string;
+    trustUpdates?: Record<string, number>;
+    strategyAdjustment?: string;
+    error?: string;
+  }): void {
+    if (!this.onLogEntry) return;
+
+    this.onLogEntry({
+      timestamp: Date.now(),
+      agentId: this.id,
+      agentName: this.identity.name,
+      round: params.round,
+      phase: params.phase,
+      type: params.type,
+      data: {
+        promptSummary: params.promptSummary,
+        responseSummary: params.responseSummary,
+        api: params.api,
+        messages: params.messages,
+        actions: params.actions,
+        observations: params.observations,
+        trustUpdates: params.trustUpdates,
+        strategyAdjustment: params.strategyAdjustment,
+        error: params.error,
+      },
+    });
+  }
+
+  private emitErrorLog(round: number, phase: AgentLogPhase, err: unknown, prompt: string): void {
+    const error = err instanceof Error ? err.message : String(err);
+    this.emitLogEntry({
+      round,
+      phase,
+      type: "error",
+      promptSummary: this.summarizePrompt(prompt),
+      responseSummary: error,
+      error,
+    });
+  }
+
+  private getLatestApiCall(): ApiCallLog | undefined {
+    return this.apiLog[this.apiLog.length - 1];
+  }
+
+  private toApiMeta(entry?: ApiCallLog): AgentApiMeta | undefined {
+    if (!entry) return undefined;
+
+    return {
+      method: entry.method,
+      model: entry.model,
+      inputTokens: entry.inputTokens,
+      outputTokens: entry.outputTokens,
+      latencyMs: entry.latencyMs,
+      action: entry.action,
+    };
+  }
+
+  private summarizePrompt(prompt: string): string {
+    return this.summarizeText(prompt, 220);
+  }
+
+  private summarizeMessages(messages: Message[]): string {
+    if (messages.length === 0) return "No negotiation messages sent.";
+
+    return this.summarizeText(
+      messages
+        .map((message) => `${message.type}:${String(message.recipient)} ${message.content}`)
+        .join(" | "),
+      260,
+    );
+  }
+
+  private summarizeActions(actions: Action[]): string {
+    if (actions.length === 0) return "No actions submitted.";
+
+    return this.summarizeText(
+      actions
+        .map((action) => `${action.type}${Object.keys(action.params).length > 0 ? ` ${JSON.stringify(action.params)}` : ""}`)
+        .join(" | "),
+      260,
+    );
+  }
+
+  private summarizeText(text: string, maxLength: number): string {
+    const normalized = text.replace(/\s+/g, " ").trim();
+    if (normalized.length <= maxLength) return normalized;
+    return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+  }
+
   // ============================================================
   // Public accessors
   // ============================================================
@@ -651,5 +858,5 @@ Hidden rounds. Highest VP wins. Commons health determines prize survival.
 // ============================================================
 
 export function createLLMAgent(personaPath: string, agentId: string, provider?: LLMProvider): GameAgent {
-  return new LLMAgent(personaPath, agentId, provider);
+  return new LLMAgent(personaPath, agentId, { provider });
 }
