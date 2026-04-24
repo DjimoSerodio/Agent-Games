@@ -2,7 +2,7 @@ import { Action, ActionOutcome, AgentId, RoundResult, TrustUpdate } from "../../
 import { getStartingPositions as getGridStartingPositions, hexKey, hexNeighbors } from "./hex-grid.js";
 import { computeProductionYields } from "./production.js";
 import { computeAllianceVPUpdates } from "./scoring.js";
-import { ComedyAction } from "./types.js";
+import { TragedyAction } from "./types.js";
 import { getRegionByCoord } from "./world-map.js";
 
 export async function initializeAgentsState(ctx: any): Promise<void> {
@@ -55,8 +55,8 @@ export async function initializeAgentsState(ctx: any): Promise<void> {
         const agentName = `agent_${agentId.slice(0, 8)}`;
         await ctx.erc8004Integration.registerAgentForGame(agentId, {
           name: agentName,
-          description: "Comedy of the Commons game agent",
-          services: [{ name: "comedy_engine", endpoint: `game://${ctx.config.id}` }],
+          description: "Tragedy of the Commons game agent",
+          services: [{ name: "tragedy_engine", endpoint: `game://${ctx.config.id}` }],
         });
       } catch (error) {
         console.warn(`Failed to register agent ${agentId} on ERC-8004:`, error);
@@ -128,12 +128,12 @@ export function resolveActions(ctx: any, actions: Map<AgentId, Action[]>): Round
   const crisisContributors = new Set<AgentId>();
 
   for (const agentId of ctx.state.players) scoreChanges[agentId] = 0;
-  const tradeSubmissions = new Map<string, ComedyAction>();
+  const tradeSubmissions = new Map<string, TragedyAction>();
 
   for (const [agentId, agentActions] of actions) {
     const ps = ctx.state.playerStates.get(agentId);
     if (!ps) continue;
-    const limitedActions = agentActions.slice(0, 2) as ComedyAction[];
+    const limitedActions = agentActions.slice(0, 2) as TragedyAction[];
 
     for (const action of limitedActions) {
       ctx.state.moveCount++;

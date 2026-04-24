@@ -2,8 +2,8 @@ import { AgentId, TrustUpdate } from "../../core/types.js";
 import {
   ARMY_ATTACK_COST_PER_DISTANCE,
   ARMY_COST,
-  ComedyGameState,
-  ComedyPlayerState,
+  TragedyGameState,
+  TragedyPlayerState,
   HexCoord,
   HexVertex,
   RESOURCE_NAMES,
@@ -21,7 +21,7 @@ function canAfford(resources: ResourceInventory, cost: ResourceInventory): boole
   return RESOURCE_NAMES.every((resource) => resources[resource] >= cost[resource]);
 }
 
-function deductResources(ps: ComedyPlayerState, cost: ResourceInventory): void {
+function deductResources(ps: TragedyPlayerState, cost: ResourceInventory): void {
   for (const resource of RESOURCE_NAMES) {
     ps.resources[resource] -= cost[resource];
   }
@@ -29,9 +29,9 @@ function deductResources(ps: ComedyPlayerState, cost: ResourceInventory): void {
 
 export function resolveArmyBuild(
   agentId: AgentId,
-  ps: ComedyPlayerState,
+  ps: TragedyPlayerState,
   _params: unknown,
-  state: ComedyGameState,
+  state: TragedyGameState,
 ): ArmyCombatResult {
   if (!canAfford(ps.resources, ARMY_COST)) {
     return { success: false, description: "Insufficient resources for army (need 1 Ore + 1 Energy)", trustUpdates: [] };
@@ -67,7 +67,7 @@ export function resolveArmyMove(
   agentId: AgentId,
   armyId: string,
   destination: HexCoord,
-  state: ComedyGameState,
+  state: TragedyGameState,
 ): ArmyCombatResult {
   const ps = state.playerStates.get(agentId);
   if (!ps) {
@@ -92,7 +92,7 @@ export function resolveArmyAttack(
   agentId: AgentId,
   armyId: string,
   targetId: string,
-  state: ComedyGameState,
+  state: TragedyGameState,
   targetStructureIndex?: number,
 ): ArmyCombatResult {
   const ps = state.playerStates.get(agentId);

@@ -1,5 +1,5 @@
 import { AgentId, TrustUpdate } from "../../core/types.js";
-import { ComedyGameState, ComedyPlayerState } from "./types.js";
+import { TragedyGameState, TragedyPlayerState } from "./types.js";
 
 export interface BonusUpdate {
   kind: "longestRoad" | "mostInfluence";
@@ -30,7 +30,7 @@ function cloneCooperationRounds(
 }
 
 export function computePlayerScores(
-  playerStates: Map<AgentId, ComedyPlayerState>,
+  playerStates: Map<AgentId, TragedyPlayerState>,
 ): Record<AgentId, number> {
   const scores: Record<AgentId, number> = {};
   for (const [agentId, playerState] of playerStates) {
@@ -40,7 +40,7 @@ export function computePlayerScores(
 }
 
 export function computeAllianceVPUpdates(
-  state: ComedyGameState,
+  state: TragedyGameState,
   resolvedTrades: Array<{ from: AgentId; to: AgentId; round: number }>,
   sabotageEvents: Array<{ from: AgentId; to: AgentId; round: number }>,
   trustUpdates: TrustUpdate[],
@@ -120,11 +120,11 @@ export function computeAllianceVPUpdates(
 }
 
 export function getAllianceVP(
-  playerStates: Map<AgentId, ComedyPlayerState>,
+  playerStates: Map<AgentId, TragedyPlayerState>,
   agentId: AgentId,
 ): number {
   const ps = playerStates.get(agentId);
-  return ps ? (ps as ComedyPlayerState & { allianceVP?: number }).allianceVP || 0 : 0;
+  return ps ? (ps as TragedyPlayerState & { allianceVP?: number }).allianceVP || 0 : 0;
 }
 
 export function getAllianceVPFromMap(
@@ -135,7 +135,7 @@ export function getAllianceVPFromMap(
 }
 
 export function computeBonusHolderUpdates(
-  playerStates: Map<AgentId, ComedyPlayerState>,
+  playerStates: Map<AgentId, TragedyPlayerState>,
 ): BonusUpdate[] {
   let maxRoad = 0;
   let roadHolder: AgentId | null = null;

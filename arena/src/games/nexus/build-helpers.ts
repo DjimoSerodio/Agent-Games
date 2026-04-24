@@ -1,8 +1,8 @@
 import { AgentId } from "../../core/types.js";
 import { hexDistance, hexKey, hexNeighbors } from "./hex-grid.js";
-import { ComedyPlayerState, HexCoord, HexTile } from "./types.js";
+import { TragedyPlayerState, HexCoord, HexTile } from "./types.js";
 
-export function hasStructureNearHex(ps: ComedyPlayerState, coord: HexCoord): boolean {
+export function hasStructureNearHex(ps: TragedyPlayerState, coord: HexCoord): boolean {
   const allStructureHexes = [
     ...ps.structures.villages,
     ...ps.structures.townships,
@@ -21,7 +21,7 @@ export function hasStructureNearHex(ps: ComedyPlayerState, coord: HexCoord): boo
   return false;
 }
 
-export function hasCityNearHex(ps: ComedyPlayerState, coord: HexCoord): boolean {
+export function hasCityNearHex(ps: TragedyPlayerState, coord: HexCoord): boolean {
   for (const city of ps.structures.cities) {
     for (const cityHex of city.hexes) {
       if (hexDistance(cityHex, coord) <= 1) {
@@ -32,7 +32,7 @@ export function hasCityNearHex(ps: ComedyPlayerState, coord: HexCoord): boolean 
   return false;
 }
 
-export function getAllStructureHexes(playerStates: Map<AgentId, ComedyPlayerState>): HexCoord[] {
+export function getAllStructureHexes(playerStates: Map<AgentId, TragedyPlayerState>): HexCoord[] {
   const hexes: HexCoord[] = [];
   for (const [, ps] of playerStates) {
     for (const v of ps.structures.villages) hexes.push(...v.hexes);
@@ -53,7 +53,7 @@ export function satisfiesDistanceRule(coord: HexCoord, allStructureHexes: HexCoo
 
 export function findBuildableHex(
   agentId: AgentId,
-  playerStates: Map<AgentId, ComedyPlayerState>,
+  playerStates: Map<AgentId, TragedyPlayerState>,
   hexGrid: Map<string, HexTile>,
   enforceDistanceRule = true,
 ): HexCoord | null {
@@ -140,7 +140,7 @@ export function findBuildableHex(
   return null;
 }
 
-export function findStructureHex(ps: ComedyPlayerState): HexCoord | null {
+export function findStructureHex(ps: TragedyPlayerState): HexCoord | null {
   const allStructures = [
     ...ps.structures.villages,
     ...ps.structures.townships,

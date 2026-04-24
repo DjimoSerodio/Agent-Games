@@ -1,11 +1,11 @@
 import { AgentId, ActionOutcome, TrustUpdate } from "../../core/types.js";
 import { hexKey } from "./hex-grid.js";
 import { getRegionByCoord } from "./world-map.js";
-import { ComedyGameState, ComedyPlayerState, CrisisEvent, EcosystemState, ResourceType } from "./types.js";
+import { TragedyGameState, TragedyPlayerState, CrisisEvent, EcosystemState, ResourceType } from "./types.js";
 import { computeCommonsCycleEffects } from "./ecosystem.js";
 import { computeCrisisPenalties, computeCrisisResolution } from "./crisis.js";
 
-export function getControlledRegionIds(state: ComedyGameState, agentId: AgentId): string[] {
+export function getControlledRegionIds(state: TragedyGameState, agentId: AgentId): string[] {
   const ps = state.playerStates.get(agentId);
   if (!ps) return [];
   const regionIds = new Set<string>();
@@ -21,14 +21,14 @@ export function getControlledRegionIds(state: ComedyGameState, agentId: AgentId)
   return [...regionIds];
 }
 
-export function getAccessibleEcosystems(state: ComedyGameState, agentId: AgentId): EcosystemState[] {
+export function getAccessibleEcosystems(state: TragedyGameState, agentId: AgentId): EcosystemState[] {
   const controlled = new Set(getControlledRegionIds(state, agentId));
   return state.ecosystems
     .filter((ecosystem) => ecosystem.regionIds.some((regionId) => controlled.has(regionId)))
     .sort((left, right) => left.health - right.health);
 }
 
-export function chooseAccessibleEcosystem(state: ComedyGameState, agentId: AgentId, ecosystemId?: string): EcosystemState | null {
+export function chooseAccessibleEcosystem(state: TragedyGameState, agentId: AgentId, ecosystemId?: string): EcosystemState | null {
   const accessible = getAccessibleEcosystems(state, agentId);
   if (accessible.length === 0) return null;
   if (ecosystemId) return accessible.find((ecosystem) => ecosystem.id === ecosystemId) || null;
@@ -65,7 +65,7 @@ export function applyCrisisPenalty(ctx: any, crisis: CrisisEvent, scoreChanges: 
 
   switch (crisis.type) {
     case "blight": {
-      for (const [, ps] of ctx.state.playerStates as Map<AgentId, ComedyPlayerState>) {
+      for (const [, ps] of ctx.state.playerStates as Map<AgentId, TragedyPlayerState>) {
         const lost = Math.min(ps.resources.grain, 2);
         ps.resources.grain -= lost;
         if (ps.resources.water > 0) ps.resources.water -= 1;
@@ -73,7 +73,7 @@ export function applyCrisisPenalty(ctx: any, crisis: CrisisEvent, scoreChanges: 
       break;
     }
     case "storm": {
-      for (const [, ps] of ctx.state.playerStates as Map<AgentId, ComedyPlayerState>) {
+      for (const [, ps] of ctx.state.playerStates as Map<AgentId, TragedyPlayerState>) {
         if (ps.structures.roads.length > 0) {
           ps.structures.roads.pop();
           ps.longestRoad = Math.max(0, ps.longestRoad - 1);
@@ -82,7 +82,7 @@ export function applyCrisisPenalty(ctx: any, crisis: CrisisEvent, scoreChanges: 
       break;
     }
     case "famine": {
-      for (const [, ps] of ctx.state.playerStates as Map<AgentId, ComedyPlayerState>) {
+      for (const [, ps] of ctx.state.playerStates as Map<AgentId, TragedyPlayerState>) {
         const total = ctx.totalResources(ps.resources);
         if (total > 5) {
           let toRemove = total - 5;

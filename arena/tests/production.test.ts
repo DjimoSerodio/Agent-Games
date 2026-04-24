@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { AgentId } from "../src/core/types.js";
 import { computeProductionYields, getRegionProductionModifier } from "../src/games/nexus/production.js";
-import { ComedyGameState, ComedyPlayerState, EMPTY_INVENTORY } from "../src/games/nexus/types.js";
+import { TragedyGameState, TragedyPlayerState, EMPTY_INVENTORY } from "../src/games/nexus/types.js";
 
-function player(id: AgentId): ComedyPlayerState {
+function player(id: AgentId): TragedyPlayerState {
   return {
     id,
     resources: { ...EMPTY_INVENTORY },
@@ -16,7 +16,7 @@ function player(id: AgentId): ComedyPlayerState {
   };
 }
 
-function makeState(playerStates: Map<AgentId, ComedyPlayerState>): ComedyGameState {
+function makeState(playerStates: Map<AgentId, TragedyPlayerState>): TragedyGameState {
   const hexGrid = new Map<string, any>();
   hexGrid.set("0,0", { coord: { q: 0, r: 0 }, terrain: "plains", productionNumber: 6, revealed: true, revealedBy: [], regionId: "r1" });
   return {

@@ -1,7 +1,8 @@
 import { Action, AgentId } from "../../core/types.js";
-import { ComedyAction, ComedyAgentView, RESOURCE_NAMES } from "./types.js";
+import { TragedyAction, TragedyAgentView, RESOURCE_NAMES } from "./types.js";
+import { projectVisibleBehaviorTags } from "./behavior-view.js";
 
-export function getAgentView(ctx: any, agentId: AgentId): ComedyAgentView {
+export function getAgentView(ctx: any, agentId: AgentId): TragedyAgentView {
   const playerState = ctx.state.playerStates.get(agentId);
   if (!playerState) throw new Error(`Unknown agent: ${agentId}`);
 
@@ -62,6 +63,7 @@ export function getAgentView(ctx: any, agentId: AgentId): ComedyAgentView {
     visibleArmies: Array.from(ctx.state.playerStates.values()).flatMap((ps: any) => ps.armies),
     visibleCommitments: ctx.getVisibleCommitments(agentId),
     visibleAttestations: ctx.getVisibleAttestations(agentId),
+    visibleBehaviorTags: projectVisibleBehaviorTags(ctx.state.behaviorTags),
     messageHistory: ctx.filterMessagesForAgent(agentId, ctx.messageLog),
     prizePool: ctx.state.prizePool.toString(),
     payablePrizePool: ctx.state.payablePrizePool.toString(),
@@ -82,7 +84,7 @@ export function getLegalActions(ctx: any, agentId: AgentId): Action[] {
   const ps = ctx.state.playerStates.get(agentId);
   if (!ps) return [];
 
-  const actions: ComedyAction[] = [];
+  const actions: TragedyAction[] = [];
   const r = ps.resources;
 
   if (r.grain >= 1 && r.timber >= 1) actions.push(ctx.makeAction("build_road", agentId));

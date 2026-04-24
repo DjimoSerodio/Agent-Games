@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { resolveArmyAttack, resolveArmyBuild, resolveArmyMove } from "../src/games/nexus/combat.js";
-import { ComedyGameState, ComedyPlayerState, EMPTY_INVENTORY } from "../src/games/nexus/types.js";
+import { TragedyGameState, TragedyPlayerState, EMPTY_INVENTORY } from "../src/games/nexus/types.js";
 
-function player(id: string): ComedyPlayerState {
+function player(id: string): TragedyPlayerState {
   return {
     id,
     resources: { ...EMPTY_INVENTORY, ore: 2, energy: 4 },
@@ -15,7 +15,7 @@ function player(id: string): ComedyPlayerState {
   };
 }
 
-function makeState(a: ComedyPlayerState, b: ComedyPlayerState): ComedyGameState {
+function makeState(a: TragedyPlayerState, b: TragedyPlayerState): TragedyGameState {
   return {
     gameId: "g",
     round: 3,

@@ -6,7 +6,7 @@ import {
   CommitmentRecord,
   ContestedClaim,
   ResolutionStatus,
-  ComedyGameState,
+  TragedyGameState,
 } from "./types.js";
 
 export function detectCommitmentInMessage(
@@ -150,7 +150,7 @@ export function inferDueRound(
   return null;
 }
 
-function getObjectiveResolutionStatus(commitment: CommitmentRecord, state: ComedyGameState): ResolutionStatus | null {
+function getObjectiveResolutionStatus(commitment: CommitmentRecord, state: TragedyGameState): ResolutionStatus | null {
   const hasTradeEvidence = commitment.evidence.some((item) => item.type === "trade");
   const hasPayoutReceipt = commitment.evidence.some((item) => item.type === "payout_receipt");
   const hasAbsenceEvidence = commitment.evidence.some((item) => item.type === "absence");
@@ -184,7 +184,7 @@ function getObjectiveResolutionStatus(commitment: CommitmentRecord, state: Comed
 
 export function resolveSingleCommitment(
   commitment: CommitmentRecord,
-  state: ComedyGameState,
+  state: TragedyGameState,
   nextContestedId: () => string,
 ): TrustUpdate[] {
   if (commitment.resolutionStatus !== "pending") {

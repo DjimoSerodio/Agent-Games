@@ -4,7 +4,7 @@ import {
   CrisisType,
   EMPTY_INVENTORY,
   ResourceInventory,
-  ComedyPlayerState,
+  TragedyPlayerState,
 } from "./types.js";
 
 export interface CrisisResolutionResult {
@@ -52,7 +52,7 @@ export function computeCrisisResolution(
 
 export function computeCrisisPenalties(
   crisis: CrisisEvent,
-  playerStates: Map<AgentId, ComedyPlayerState>,
+  playerStates: Map<AgentId, TragedyPlayerState>,
 ): Map<AgentId, number> {
   const penalties = new Map<AgentId, number>();
   if (crisis.type !== "the_rift") {

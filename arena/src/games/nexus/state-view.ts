@@ -1,9 +1,9 @@
 import { AgentId, ActionOutcome } from "../../core/types.js";
 import { getRegionByCoord } from "./world-map.js";
-import { ComedyGameState, CommonsHealthSnapshot, CrisisEvent, HexCoord, ResourceInventory } from "./types.js";
+import { TragedyGameState, CommonsHealthSnapshot, CrisisEvent, HexCoord, ResourceInventory } from "./types.js";
 
 export function buildStateUpdatePayload(
-  state: ComedyGameState,
+  state: TragedyGameState,
   outcomes: ActionOutcome[],
   resolvedTrades: Array<{ from: AgentId; to: AgentId; round: number }>,
 ) {
@@ -122,7 +122,7 @@ export function buildStateUpdatePayload(
   };
 }
 
-export function buildHexGridDataPayload(state: ComedyGameState) {
+export function buildHexGridDataPayload(state: TragedyGameState) {
   const hexes = Array.from(state.hexGrid.values()).map((tile) => ({
     q: tile.coord.q,
     r: tile.coord.r,
@@ -178,7 +178,7 @@ export function buildHexGridDataPayload(state: ComedyGameState) {
 }
 
 export function buildStateSnapshot(
-  state: ComedyGameState,
+  state: TragedyGameState,
   trustMatrix: { agents: AgentId[]; matrix: number[][] },
 ): {
   gameId: string;

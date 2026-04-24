@@ -10,7 +10,7 @@ import {
   resolveSingleCommitment,
 } from "../src/games/nexus/commitment.js";
 import { Message } from "../src/core/types.js";
-import { CommitmentRecord, ComedyGameState } from "../src/games/nexus/types.js";
+import { CommitmentRecord, TragedyGameState } from "../src/games/nexus/types.js";
 
 function msg(content: string, recipient: string | "broadcast" = "broadcast"): Message {
   return {
@@ -26,7 +26,7 @@ function msg(content: string, recipient: string | "broadcast" = "broadcast"): Me
   };
 }
 
-function baseState(): ComedyGameState {
+function baseState(): TragedyGameState {
   return {
     gameId: "g",
     round: 3,

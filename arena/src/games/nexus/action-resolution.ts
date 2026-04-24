@@ -1,6 +1,6 @@
 import { AgentId, ActionOutcome, TrustUpdate } from "../../core/types.js";
 import {
-  ComedyAction,
+  TragedyAction,
   ResourceType,
   ResourceInventory,
   STRUCTURE_COSTS,
@@ -17,8 +17,8 @@ import { resolveArmyAttack, resolveArmyBuild, resolveArmyMove } from "./combat.j
 export function resolveAction(
   ctx: any,
   agentId: AgentId,
-  action: ComedyAction,
-  tradeSubmissions: Map<string, ComedyAction>,
+  action: TragedyAction,
+  tradeSubmissions: Map<string, TragedyAction>,
   trustUpdates: TrustUpdate[],
   sabotageEvents: Array<{ from: AgentId; to: AgentId; round: number }>,
 ): ActionOutcome {

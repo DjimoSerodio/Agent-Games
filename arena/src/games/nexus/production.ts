@@ -1,7 +1,7 @@
 import { AgentId } from "../../core/types.js";
 import {
   BIOME_ALLOWED_RESOURCES,
-  ComedyGameState,
+  TragedyGameState,
   EcosystemState,
   HexCoord,
   RESOURCE_CAP,
@@ -16,7 +16,7 @@ function totalResources(resources: ResourceInventory): number {
   return RESOURCE_NAMES.reduce((sum, resource) => sum + resources[resource], 0);
 }
 
-function hasStructureNearHex(state: ComedyGameState, agentId: AgentId, coord: HexCoord): boolean {
+function hasStructureNearHex(state: TragedyGameState, agentId: AgentId, coord: HexCoord): boolean {
   const ps = state.playerStates.get(agentId);
   if (!ps) return false;
   const structures = [
@@ -34,7 +34,7 @@ function hasStructureNearHex(state: ComedyGameState, agentId: AgentId, coord: He
   return false;
 }
 
-function hasCityNearHex(state: ComedyGameState, agentId: AgentId, coord: HexCoord): boolean {
+function hasCityNearHex(state: TragedyGameState, agentId: AgentId, coord: HexCoord): boolean {
   const ps = state.playerStates.get(agentId);
   if (!ps) return false;
   for (const city of ps.structures.cities) {
@@ -57,7 +57,7 @@ export function getRegionProductionModifier(regionId: string, ecosystems: Ecosys
 }
 
 export function computeProductionYields(
-  state: ComedyGameState,
+  state: TragedyGameState,
   productionNumber: number,
 ): Map<AgentId, Partial<ResourceInventory>> {
   const yields = new Map<AgentId, Partial<ResourceInventory>>();

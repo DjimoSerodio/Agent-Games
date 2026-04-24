@@ -1,14 +1,14 @@
 import { AgentId, ActionOutcome, TrustUpdate } from "../../core/types.js";
-import { ComedyAction, ResourceInventory, ResourceType } from "./types.js";
+import { TragedyAction, ResourceInventory, ResourceType } from "./types.js";
 
 export function resolveMatchedTrades(
   ctx: any,
-  submissions: Map<string, ComedyAction>,
+  submissions: Map<string, TragedyAction>,
   outcomes: ActionOutcome[],
   trustUpdates: TrustUpdate[],
   resolvedTrades: Array<{ from: AgentId; to: AgentId; round: number }>,
 ): void {
-  const pairs = new Map<string, ComedyAction[]>();
+  const pairs = new Map<string, TragedyAction[]>();
   for (const [key, action] of submissions) {
     const pairKey = key.split(":")[0];
     if (!pairs.has(pairKey)) pairs.set(pairKey, []);

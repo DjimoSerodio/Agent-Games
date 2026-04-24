@@ -7,7 +7,7 @@ import {
   getEcosystemYieldMultiplier,
   getRestorationCost,
 } from "../src/games/nexus/ecosystem.js";
-import { ComedyGameState, ComedyPlayerState, EcosystemState, EMPTY_INVENTORY } from "../src/games/nexus/types.js";
+import { TragedyGameState, TragedyPlayerState, EcosystemState, EMPTY_INVENTORY } from "../src/games/nexus/types.js";
 
 function ecosystem(overrides: Partial<EcosystemState> = {}): EcosystemState {
   return {
@@ -33,7 +33,7 @@ function ecosystem(overrides: Partial<EcosystemState> = {}): EcosystemState {
   };
 }
 
-function player(id: AgentId): ComedyPlayerState {
+function player(id: AgentId): TragedyPlayerState {
   return {
     id,
     resources: { ...EMPTY_INVENTORY },
@@ -46,7 +46,7 @@ function player(id: AgentId): ComedyPlayerState {
   };
 }
 
-function makeState(ecosystems: EcosystemState[], players: Map<AgentId, ComedyPlayerState>): ComedyGameState {
+function makeState(ecosystems: EcosystemState[], players: Map<AgentId, TragedyPlayerState>): TragedyGameState {
   return {
     gameId: "g",
     round: 3,
@@ -148,7 +148,7 @@ describe("ecosystem module", () => {
   it("computes commons cycle pressure from extraction and armies", () => {
     const p = player("a");
     p.armies.push({ id: "army-1", owner: "a", count: 2, position: { q: 0, r: 1 } });
-    const players = new Map<AgentId, ComedyPlayerState>([["a", p]]);
+    const players = new Map<AgentId, TragedyPlayerState>([["a", p]]);
     const state = makeState([ecosystem({ health: 50 })], players);
     state.ecosystemExtractions.push({ ecosystemId: "eco-1", agentId: "a", level: "medium", pressure: 1, yield: 2, round: 3 });
 

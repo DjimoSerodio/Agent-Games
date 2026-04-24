@@ -6,9 +6,9 @@ import {
   computePlayerScores,
   getAllianceVPFromMap,
 } from "../src/games/nexus/scoring.js";
-import { ComedyGameState, ComedyPlayerState, EMPTY_INVENTORY } from "../src/games/nexus/types.js";
+import { TragedyGameState, TragedyPlayerState, EMPTY_INVENTORY } from "../src/games/nexus/types.js";
 
-function makePlayer(id: AgentId, overrides: Partial<ComedyPlayerState> = {}): ComedyPlayerState {
+function makePlayer(id: AgentId, overrides: Partial<TragedyPlayerState> = {}): TragedyPlayerState {
   return {
     id,
     resources: { ...EMPTY_INVENTORY },
@@ -29,7 +29,7 @@ function makePlayer(id: AgentId, overrides: Partial<ComedyPlayerState> = {}): Co
   };
 }
 
-function makeState(playerStates: Map<AgentId, ComedyPlayerState>): ComedyGameState {
+function makeState(playerStates: Map<AgentId, TragedyPlayerState>): TragedyGameState {
   return {
     gameId: "g",
     round: 2,
@@ -97,7 +97,7 @@ function makeState(playerStates: Map<AgentId, ComedyPlayerState>): ComedyGameSta
 
 describe("scoring module", () => {
   it("computePlayerScores returns VP map", () => {
-    const players = new Map<AgentId, ComedyPlayerState>([
+    const players = new Map<AgentId, TragedyPlayerState>([
       ["a", makePlayer("a", { vp: 4 })],
       ["b", makePlayer("b", { vp: 7 })],
     ]);
@@ -105,7 +105,7 @@ describe("scoring module", () => {
   });
 
   it("computeAllianceVPUpdates awards VP at sustained cooperation threshold", () => {
-    const players = new Map<AgentId, ComedyPlayerState>([
+    const players = new Map<AgentId, TragedyPlayerState>([
       ["a", makePlayer("a")],
       ["b", makePlayer("b")],
     ]);
@@ -126,7 +126,7 @@ describe("scoring module", () => {
   });
 
   it("computeAllianceVPUpdates applies sabotage break penalty", () => {
-    const players = new Map<AgentId, ComedyPlayerState>([
+    const players = new Map<AgentId, TragedyPlayerState>([
       ["a", makePlayer("a")],
       ["b", makePlayer("b")],
     ]);
@@ -148,7 +148,7 @@ describe("scoring module", () => {
   });
 
   it("computeBonusHolderUpdates picks longest road and most influence", () => {
-    const players = new Map<AgentId, ComedyPlayerState>([
+    const players = new Map<AgentId, TragedyPlayerState>([
       ["a", makePlayer("a", { longestRoad: 6, influence: 1 })],
       ["b", makePlayer("b", { longestRoad: 2, influence: 5 })],
     ]);

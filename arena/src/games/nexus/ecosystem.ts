@@ -1,8 +1,8 @@
 import { AgentId } from "../../core/types.js";
 import { hexDistance } from "./hex-grid.js";
 import {
-  ComedyGameState,
-  ComedyPlayerState,
+  TragedyGameState,
+  TragedyPlayerState,
   EcosystemExtractionRecord,
   EcosystemState,
   ResourceInventory,
@@ -54,8 +54,8 @@ export function getRestorationCost(kind: EcosystemState["kind"]): ResourceInvent
 }
 
 export function computeCommonsCycleEffects(
-  state: ComedyGameState,
-  playerStates: Map<AgentId, ComedyPlayerState>,
+  state: TragedyGameState,
+  playerStates: Map<AgentId, TragedyPlayerState>,
 ): CommonsCycleResult {
   const roundExtractions = state.ecosystemExtractions.filter((entry) => entry.round === state.round);
   const ecosystems: EcosystemState[] = [];

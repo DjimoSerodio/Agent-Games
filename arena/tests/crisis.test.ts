@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { computeCrisisPenalties, computeCrisisResolution, selectCrisisType } from "../src/games/nexus/crisis.js";
-import { ComedyPlayerState, CrisisEvent, EMPTY_INVENTORY } from "../src/games/nexus/types.js";
+import { TragedyPlayerState, CrisisEvent, EMPTY_INVENTORY } from "../src/games/nexus/types.js";
 
 function makeCrisis(type: CrisisEvent["type"]): CrisisEvent {
   return {
@@ -17,7 +17,7 @@ function makeCrisis(type: CrisisEvent["type"]): CrisisEvent {
   };
 }
 
-function makePlayer(id: string): ComedyPlayerState {
+function makePlayer(id: string): TragedyPlayerState {
   return {
     id,
     resources: { ...EMPTY_INVENTORY },
