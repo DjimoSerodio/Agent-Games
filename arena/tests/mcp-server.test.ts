@@ -3,17 +3,17 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { MCPAgentAdapter } from "../src/mcp/adapter.js";
 import {
-  createComedyMcpServer,
+  createTragedyMcpServer,
   MCP_RESOURCE_URIS,
   MCP_TOOL_NAMES,
 } from "../src/mcp/server.js";
 import { AgentIdentity, GameConfig } from "../src/core/types.js";
-import { ComedyAgentView } from "../src/games/nexus/types.js";
+import { TragedyAgentView } from "../src/games/nexus/types.js";
 
 function makeConfig(): GameConfig {
   return {
     id: "game-1",
-    type: "comedy_commons",
+    type: "tragedy_commons",
     maxPlayers: 4,
     minPlayers: 2,
     maxRounds: 12,
@@ -37,7 +37,7 @@ function makeIdentity(id: string): AgentIdentity {
   };
 }
 
-function makeView(myId: string): ComedyAgentView {
+function makeView(myId: string): TragedyAgentView {
   return {
     gameId: "game-1",
     round: 1,
@@ -104,6 +104,16 @@ function makeView(myId: string): ComedyAgentView {
       [myId]: 0.5,
       "agent-b": 0.5,
     },
+    visibleBehaviorTags: [
+      {
+        id: "tag-1",
+        round: 1,
+        actor: myId,
+        kind: "stewardship",
+        severity: "medium",
+        description: "Contributed to the commons.",
+      },
+    ],
     productionWheel: [2, 3, 4],
     wheelPosition: 0,
     nextProduction: [3, 4, 2],
@@ -138,12 +148,12 @@ function makeView(myId: string): ComedyAgentView {
   };
 }
 
-describe("Comedy MCP server", () => {
+describe("Tragedy MCP server", () => {
   it("registers expected tools and resources", async () => {
     const adapter = new MCPAgentAdapter("agent-a");
     await adapter.initialize(makeConfig(), makeView("agent-a"), makeIdentity("agent-a"));
 
-    const { mcpServer } = createComedyMcpServer(adapter);
+    const { mcpServer } = createTragedyMcpServer(adapter);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
     const client = new Client({ name: "test-client", version: "0.1.0" });
@@ -170,7 +180,7 @@ describe("Comedy MCP server", () => {
     const state = makeView("agent-a");
     await adapter.initialize(makeConfig(), state, makeIdentity("agent-a"));
 
-    const { mcpServer } = createComedyMcpServer(adapter);
+    const { mcpServer } = createTragedyMcpServer(adapter);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
     const client = new Client({ name: "test-client", version: "0.1.0" });
@@ -179,13 +189,25 @@ describe("Comedy MCP server", () => {
     const guideResult = await client.callTool({ name: "get_guide", arguments: {} });
     const guideBlocks = guideResult.content as Array<{ type: string; text?: string }>;
     const guidePayload = JSON.parse(guideBlocks[0]?.type === "text" ? guideBlocks[0].text ?? "{}" : "{}");
-    expect(guidePayload.game).toBe("comedy-of-the-commons");
+    expect(guidePayload.game).toBe("tragedy-of-the-commons");
     expect(guidePayload.tools).toContain("submit_move");
 
     const stateResult = await client.callTool({ name: "get_state", arguments: {} });
     const stateBlocks = stateResult.content as Array<{ type: string; text?: string }>;
     const statePayload = JSON.parse(stateBlocks[0]?.type === "text" ? stateBlocks[0].text ?? "{}" : "{}");
     expect(statePayload.state.myId).toBe("agent-a");
+    expect(statePayload.state.visibleBehaviorTags).toHaveLength(1);
+
+    const behaviorResult = await client.callTool({ name: "get_behavior", arguments: {} });
+    const behaviorBlocks = behaviorResult.content as Array<{ type: string; text?: string }>;
+    const behaviorPayload = JSON.parse(behaviorBlocks[0]?.type === "text" ? behaviorBlocks[0].text ?? "{}" : "{}");
+    expect(behaviorPayload.behaviorTags).toHaveLength(1);
+    expect(behaviorPayload.behaviorTags[0].description).toBe("Contributed to the commons.");
+
+    const behaviorResource = await client.readResource({ uri: "game://behavior" });
+    const resourceText = "contents" in behaviorResource ? behaviorResource.contents[0]?.text ?? "{}" : "{}";
+    const behaviorResourcePayload = JSON.parse(resourceText);
+    expect(behaviorResourcePayload.behaviorTags).toHaveLength(1);
 
     const negotiatePromise = adapter.negotiate(state, [], 1);
     await client.callTool({

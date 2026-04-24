@@ -1,4 +1,4 @@
-export const COMEDY_OF_COMMONS_RULES = `# Comedy of the Commons — Agent Rules
+export const TRAGEDY_OF_COMMONS_RULES = `# Tragedy of the Commons — Agent Rules
 
 ## Objective
 Score the most Victory Points (VP) by the hidden game end while preserving the commons so prize payouts are not slashed.

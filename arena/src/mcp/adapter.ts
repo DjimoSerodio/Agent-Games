@@ -10,9 +10,10 @@ import {
   RoundResult,
 } from "../core/types.js";
 import {
-  ComedyAction,
-  ComedyActionType,
-  ComedyAgentView,
+  TragedyAction,
+  TragedyActionType,
+  TragedyAgentView,
+  VisibleBehaviorTag,
   ExtractionLevel,
   ResourceInventory,
   ResourceType,
@@ -38,7 +39,7 @@ export class MCPAgentAdapter implements GameAgent {
   identity: AgentIdentity;
 
   private config: GameConfig | null = null;
-  private currentState: ComedyAgentView | null = null;
+  private currentState: TragedyAgentView | null = null;
   private currentMessages: Message[] = [];
   private currentLegalActions: Action[] = [];
   private currentRound = 0;
@@ -67,13 +68,13 @@ export class MCPAgentAdapter implements GameAgent {
 
   async initialize(config: GameConfig, state: unknown, identity: AgentIdentity): Promise<void> {
     this.config = config;
-    this.currentState = state as ComedyAgentView;
+    this.currentState = state as TragedyAgentView;
     this.identity = identity;
     this.currentRound = this.currentState?.round ?? 0;
   }
 
   async negotiate(state: unknown, incomingMessages: Message[], round: number): Promise<Message[]> {
-    this.currentState = state as ComedyAgentView;
+    this.currentState = state as TragedyAgentView;
     this.currentMessages = incomingMessages;
     this.currentRound = round;
     this.captureIncomingTradeProposals(incomingMessages);
@@ -85,7 +86,7 @@ export class MCPAgentAdapter implements GameAgent {
   }
 
   async act(state: unknown, round: number, legalActions: Action[]): Promise<Action[]> {
-    this.currentState = state as ComedyAgentView;
+    this.currentState = state as TragedyAgentView;
     this.currentRound = round;
     this.currentLegalActions = legalActions;
 
@@ -99,7 +100,7 @@ export class MCPAgentAdapter implements GameAgent {
     this.lastRoundResult = results;
   }
 
-  getGameState(): ComedyAgentView | null {
+  getGameState(): TragedyAgentView | null {
     return this.currentState;
   }
 
@@ -122,6 +123,10 @@ export class MCPAgentAdapter implements GameAgent {
     return this.currentState?.trustScores ?? {};
   }
 
+  getVisibleBehaviorTags(): VisibleBehaviorTag[] {
+    return this.currentState?.visibleBehaviorTags ?? [];
+  }
+
   getVisibleMessages() {
     const history = this.currentState?.messageHistory ?? [];
     return [...history, ...this.currentMessages];
@@ -131,11 +136,11 @@ export class MCPAgentAdapter implements GameAgent {
     return this.lastRoundResult;
   }
 
-  submitAction(actionType: string, params: Record<string, unknown> = {}): ComedyAction {
+  submitAction(actionType: string, params: Record<string, unknown> = {}): TragedyAction {
     const normalizedType = this.normalizeActionType(actionType, params);
     this.ensureActionAllowed(normalizedType);
 
-    const action: ComedyAction = {
+    const action: TragedyAction = {
       type: normalizedType,
       agentId: this.id,
       params,
@@ -209,7 +214,7 @@ export class MCPAgentAdapter implements GameAgent {
     return proposal;
   }
 
-  respondTrade(tradeId: string, accept: boolean): { tradeId: string; accept: boolean; action?: ComedyAction } {
+  respondTrade(tradeId: string, accept: boolean): { tradeId: string; accept: boolean; action?: TragedyAction } {
     const proposal = this.tradeProposals.get(tradeId);
     if (!proposal) {
       throw new Error(`Unknown trade proposal: ${tradeId}`);
@@ -235,11 +240,11 @@ export class MCPAgentAdapter implements GameAgent {
     return { tradeId, accept, action };
   }
 
-  extractEcosystem(ecosystemId: string, level: ExtractionLevel): ComedyAction {
+  extractEcosystem(ecosystemId: string, level: ExtractionLevel): TragedyAction {
     return this.submitAction("extract_commons", { ecosystemId, extractionLevel: level });
   }
 
-  contributeCrisis(crisisId: string, resources: Partial<ResourceInventory>): ComedyAction {
+  contributeCrisis(crisisId: string, resources: Partial<ResourceInventory>): TragedyAction {
     return this.submitAction("crisis_contribute", { crisisId, contribution: this.cleanResourcePatch(resources) });
   }
 
@@ -251,12 +256,12 @@ export class MCPAgentAdapter implements GameAgent {
     return this.sendMessage("private", partnerId, `ALLIANCE_BREAK ${this.id} ${partnerId}`);
   }
 
-  build(structureType: VertexStructure | "road", location?: unknown): ComedyAction {
+  build(structureType: VertexStructure | "road", location?: unknown): TragedyAction {
     const mappedType = this.mapBuildStructureToAction(structureType);
     return this.submitAction(mappedType, location ? { location } : {});
   }
 
-  passTurn(): ComedyAction {
+  passTurn(): TragedyAction {
     return this.submitAction("pass", {});
   }
 
@@ -309,9 +314,9 @@ export class MCPAgentAdapter implements GameAgent {
     return this.flushActions();
   }
 
-  private normalizeActionType(actionType: string, params: Record<string, unknown>): ComedyActionType {
+  private normalizeActionType(actionType: string, params: Record<string, unknown>): TragedyActionType {
     const normalized = actionType.trim().toLowerCase();
-    const aliases: Record<string, ComedyActionType> = {
+    const aliases: Record<string, TragedyActionType> = {
       build: this.mapBuildStructureToAction((params.structure_type as VertexStructure | "road") ?? "village"),
       trade: "trade_player",
       extract: "extract_commons",
@@ -345,7 +350,7 @@ export class MCPAgentAdapter implements GameAgent {
     return mapped;
   }
 
-  private ensureActionAllowed(actionType: ComedyActionType): void {
+  private ensureActionAllowed(actionType: TragedyActionType): void {
     if (this.currentLegalActions.length === 0) return;
 
     const legal = new Set(this.currentLegalActions.map((a) => a.type));
@@ -354,7 +359,7 @@ export class MCPAgentAdapter implements GameAgent {
     }
   }
 
-  private mapBuildStructureToAction(structureType: VertexStructure | "road"): ComedyActionType {
+  private mapBuildStructureToAction(structureType: VertexStructure | "road"): TragedyActionType {
     switch (structureType) {
       case "road":
         return "build_road";

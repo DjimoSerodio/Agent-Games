@@ -3,7 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { MCPAgentAdapter } from "./adapter.js";
-import { COMEDY_OF_COMMONS_RULES } from "./rules.js";
+import { TRAGEDY_OF_COMMONS_RULES } from "./rules.js";
 
 const resourcePatchSchema = z.object({
   grain: z.number().int().nonnegative().optional(),
@@ -24,8 +24,8 @@ const jsonResource = (uri: string, payload: unknown) => ({
 });
 
 const buildGuidePayload = () => ({
-  game: "comedy-of-the-commons",
-  rules: COMEDY_OF_COMMONS_RULES,
+  game: "tragedy-of-the-commons",
+  rules: TRAGEDY_OF_COMMONS_RULES,
   tools: MCP_TOOL_NAMES,
   resources: MCP_RESOURCE_URIS,
 });
@@ -45,6 +45,7 @@ export const MCP_TOOL_NAMES = [
   "get_guide",
   "get_game_state",
   "get_state",
+  "get_behavior",
   "submit_action",
   "submit_move",
   "send_message",
@@ -61,22 +62,23 @@ export const MCP_TOOL_NAMES = [
 export const MCP_RESOURCE_URIS = [
   "game://rules",
   "game://state",
+  "game://behavior",
   "game://players",
   "game://ecosystems",
   "game://trust",
   "game://messages",
 ] as const;
 
-export interface ComedyMcpRuntime {
+export interface TragedyMcpRuntime {
   mcpServer: McpServer;
   adapter: MCPAgentAdapter;
 }
 
-export function createComedyMcpServer(adapter?: MCPAgentAdapter): ComedyMcpRuntime {
+export function createTragedyMcpServer(adapter?: MCPAgentAdapter): TragedyMcpRuntime {
   const boundAdapter = adapter ?? new MCPAgentAdapter(uuid());
 
   const mcpServer = new McpServer(
-    { name: "comedy-of-the-commons", version: "0.1.0" },
+    { name: "tragedy-of-the-commons", version: "0.1.0" },
     {
       capabilities: {
         tools: {},
@@ -101,6 +103,12 @@ export function createComedyMcpServer(adapter?: MCPAgentAdapter): ComedyMcpRunti
     "get_state",
     { description: "Get your current filtered game state (coordination-games compatible alias)" },
     async () => toolText({ state: boundAdapter.getGameState(), lastRoundResult: boundAdapter.getLastRoundResult() }),
+  );
+
+  mcpServer.registerTool(
+    "get_behavior",
+    { description: "Get the visible projected behavior timeline for this agent" },
+    async () => toolText({ behaviorTags: boundAdapter.getVisibleBehaviorTags() }),
   );
 
   mcpServer.registerTool(
@@ -239,9 +247,9 @@ export function createComedyMcpServer(adapter?: MCPAgentAdapter): ComedyMcpRunti
   mcpServer.registerResource(
     "rules",
     "game://rules",
-    { description: "Comedy of the Commons rules", mimeType: "text/plain" },
+    { description: "Tragedy of the Commons rules", mimeType: "text/plain" },
     async (uri) => ({
-      contents: [{ uri: uri.toString(), mimeType: "text/plain", text: COMEDY_OF_COMMONS_RULES }],
+      contents: [{ uri: uri.toString(), mimeType: "text/plain", text: TRAGEDY_OF_COMMONS_RULES }],
     }),
   );
 
@@ -250,6 +258,13 @@ export function createComedyMcpServer(adapter?: MCPAgentAdapter): ComedyMcpRunti
     "game://state",
     { description: "Current visible state for this agent", mimeType: "application/json" },
     async (uri) => jsonResource(uri.toString(), { state: boundAdapter.getGameState() }),
+  );
+
+  mcpServer.registerResource(
+    "behavior",
+    "game://behavior",
+    { description: "Visible projected behavior timeline for this agent", mimeType: "application/json" },
+    async (uri) => jsonResource(uri.toString(), { behaviorTags: boundAdapter.getVisibleBehaviorTags() }),
   );
 
   mcpServer.registerResource(
@@ -284,14 +299,14 @@ export function createComedyMcpServer(adapter?: MCPAgentAdapter): ComedyMcpRunti
 }
 
 export async function startMcpServer(adapter?: MCPAgentAdapter): Promise<void> {
-  const runtime = createComedyMcpServer(adapter);
+  const runtime = createTragedyMcpServer(adapter);
   const transport = new StdioServerTransport();
   await runtime.mcpServer.connect(transport);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   startMcpServer().catch((error) => {
-    console.error("Failed to start Comedy MCP server", error);
+    console.error("Failed to start Tragedy MCP server", error);
     process.exit(1);
   });
 }
