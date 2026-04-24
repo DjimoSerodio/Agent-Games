@@ -57,7 +57,7 @@ export function TopBar() {
         </div>
 
         <div className="relative z-10 flex flex-row items-center gap-5 shrink-0 max-[1500px]:w-full max-[1500px]:justify-between max-[900px]:flex-col max-[900px]:items-stretch">
-          <div className="px-4 py-3 border border-[var(--color-line)] rounded-xl bg-gradient-to-b from-[rgba(239,223,192,0.05)] to-[rgba(12,20,30,0.5)]">
+          <div className="px-4 py-3 border border-[var(--color-line)] rounded-xl overflow-hidden bg-gradient-to-b from-[rgba(239,223,192,0.05)] to-[rgba(12,20,30,0.5)]">
             <div className="flex items-center gap-2.5 font-mono text-xs tracking-[0.14em] uppercase text-[var(--color-text)]">
               <span className={`w-[11px] h-[11px] rounded-full shrink-0 transition-all duration-200 ${
                 connectionStatus === 'connected' 
