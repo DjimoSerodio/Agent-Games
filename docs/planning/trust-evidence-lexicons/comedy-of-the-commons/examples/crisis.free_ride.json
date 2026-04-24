@@ -1,0 +1,26 @@
+{
+  "id": "trustrec_demo_crisis_001",
+  "schemaVersion": "0.1.0",
+  "recordType": "outcome",
+  "eventType": "crisis.free_ride",
+  "game": "comedy-of-the-commons",
+  "scope": "round",
+  "gameId": "demo-game-001",
+  "round": 6,
+  "actor": "agent-cinder",
+  "trustDelta": -0.12,
+  "confidence": 1,
+  "observedAt": "2026-04-24T16:05:00.000Z",
+  "summary": "agent-cinder did not contribute to a shared crisis response while others paid the coordination cost.",
+  "provenance": {
+    "source": "engine",
+    "verification": "deterministic",
+    "sourceEventIds": ["event_crisis_resolved_006"]
+  },
+  "payload": {
+    "crisisId": "storm-surge-006",
+    "requiredContribution": 3,
+    "actualContribution": 0,
+    "currentReason": "crisis_free_rider"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "trustrec_demo_commitment_001",
+  "schemaVersion": "0.1.0",
+  "recordType": "outcome",
+  "eventType": "commitment.fulfilled",
+  "game": "comedy-of-the-commons",
+  "scope": "game",
+  "gameId": "demo-game-001",
+  "round": 9,
+  "actor": "agent-ember",
+  "counterparty": "agent-fennel",
+  "trustDelta": 0.15,
+  "confidence": 0.9,
+  "observedAt": "2026-04-24T16:15:00.000Z",
+  "summary": "agent-ember fulfilled a promised prize-share commitment to agent-fennel.",
+  "provenance": {
+    "source": "house",
+    "verification": "attested",
+    "sourceEventIds": ["event_commitment_resolved_009"],
+    "commitmentId": "commitment-prize-share-001",
+    "messageIds": ["msg_promise_001", "msg_receipt_001"]
+  },
+  "payload": {
+    "commitmentType": "prize_share",
+    "evidenceType": "payout_receipt",
+    "currentReason": "attested_commitment_fulfilled"
+  }
+}

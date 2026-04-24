@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://coordination.game/schemas/comedy-of-the-commons/trust-events.schema.json",
+  "title": "Comedy of the Commons Trust Evidence Record",
+  "description": "Canonical pre-chain trust evidence record for Comedy/Tragedy of the Commons.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "schemaVersion",
+    "recordType",
+    "eventType",
+    "game",
+    "scope",
+    "gameId",
+    "actor",
+    "observedAt",
+    "provenance",
+    "payload"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Stable local record identifier. Can later become content-addressed."
+    },
+    "schemaVersion": {
+      "const": "0.1.0"
+    },
+    "recordType": {
+      "type": "string",
+      "enum": ["obligation", "outcome", "attestation", "relation", "snapshot"]
+    },
+    "eventType": {
+      "type": "string",
+      "enum": [
+        "trade.completed",
+        "trade.not_reciprocated",
+        "cooperation.sustained",
+        "crisis.contributed",
+        "crisis.co_contributor",
+        "crisis.free_ride",
+        "crisis.failed_with_noncontributors",
+        "commons.extracted",
+        "commons.high_extraction",
+        "commons.restored",
+        "commons.collapsed",
+        "commons.restrained_extraction",
+        "sabotage.executed",
+        "sabotage.victim",
+        "sabotage.witnessed",
+        "conquest.executed",
+        "aggression.witnessed",
+        "commitment.detected",
+        "commitment.fulfilled",
+        "commitment.breached",
+        "commitment.contested",
+        "attestation.promise_exists",
+        "attestation.promise_fulfilled",
+        "attestation.promise_breached",
+        "attestation.dispute",
+        "repair.attempted",
+        "repair.completed",
+        "alliance.formed",
+        "alliance.broken"
+      ]
+    },
+    "game": {
+      "const": "comedy-of-the-commons"
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["round", "game", "olympiad", "global"]
+    },
+    "gameId": {
+      "type": "string"
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "actor": {
+      "type": "string",
+      "description": "Agent responsible for the behavior or claim."
+    },
+    "subject": {
+      "type": "string",
+      "description": "Agent affected by the behavior, when applicable."
+    },
+    "counterparty": {
+      "type": "string",
+      "description": "Agent on the other side of a trade, commitment, alliance, or relation."
+    },
+    "trustDelta": {
+      "type": "number",
+      "minimum": -1,
+      "maximum": 1,
+      "description": "Optional compatibility delta for the current scalar TrustGraph."
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Reducer-facing confidence in this record. Engine-observed facts should usually be 1."
+    },
+    "observedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Short human/LLM-readable explanation."
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "verification", "sourceEventIds"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["engine", "agent", "observer", "house", "imported"]
+        },
+        "verification": {
+          "type": "string",
+          "enum": ["deterministic", "derived", "attested", "contested", "unverified"]
+        },
+        "sourceEventIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "commitmentId": {
+          "type": "string"
+        },
+        "messageIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "payload": {
+      "type": "object",
+      "description": "Game-specific fields preserved for replay, reducers, and dossiers."
+    }
+  }
+}

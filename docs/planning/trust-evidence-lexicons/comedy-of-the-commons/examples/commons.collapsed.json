@@ -1,0 +1,28 @@
+{
+  "id": "trustrec_demo_commons_001",
+  "schemaVersion": "0.1.0",
+  "recordType": "outcome",
+  "eventType": "commons.collapsed",
+  "game": "comedy-of-the-commons",
+  "scope": "round",
+  "gameId": "demo-game-001",
+  "round": 8,
+  "actor": "agent-drift",
+  "trustDelta": -0.18,
+  "confidence": 1,
+  "observedAt": "2026-04-24T16:10:00.000Z",
+  "summary": "agent-drift's high extraction contributed to a fishery collapse.",
+  "provenance": {
+    "source": "engine",
+    "verification": "deterministic",
+    "sourceEventIds": ["event_commons_cycle_008"]
+  },
+  "payload": {
+    "ecosystemId": "north-fishery",
+    "ecosystemKind": "fishery",
+    "extractionLevel": "high",
+    "healthBefore": 3,
+    "healthAfter": 0,
+    "currentReason": "commons_collapsed"
+  }
+}

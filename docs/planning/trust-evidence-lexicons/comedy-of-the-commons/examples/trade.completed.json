@@ -1,0 +1,27 @@
+{
+  "id": "trustrec_demo_trade_001",
+  "schemaVersion": "0.1.0",
+  "recordType": "outcome",
+  "eventType": "trade.completed",
+  "game": "comedy-of-the-commons",
+  "scope": "round",
+  "gameId": "demo-game-001",
+  "round": 4,
+  "actor": "agent-alder",
+  "counterparty": "agent-briar",
+  "trustDelta": 0.08,
+  "confidence": 1,
+  "observedAt": "2026-04-24T16:00:00.000Z",
+  "summary": "agent-alder completed a negotiated resource trade with agent-briar.",
+  "provenance": {
+    "source": "engine",
+    "verification": "deterministic",
+    "sourceEventIds": ["event_trade_settled_001"]
+  },
+  "payload": {
+    "tradeId": "trade-001",
+    "gave": { "grain": 2 },
+    "received": { "ore": 1 },
+    "currentReason": "completed_trade"
+  }
+}

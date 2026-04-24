@@ -4,6 +4,12 @@ AGENTS.md
 .beads/
 .claude/
 docs/
+!docs/
+docs/*
+!docs/planning/
+docs/planning/*
+!docs/planning/trust-evidence-lexicons/
+!docs/planning/trust-evidence-lexicons/**
 
 # === Standard ignores ===
 node_modules/
@@ -23,3 +29,8 @@ venv/
 # Dolt database files
 .dolt/
 *.db
+
+# Local cleanup quarantine / generated QA artifacts
+trash/
+.playwright-mcp/
+arena/tmp/
