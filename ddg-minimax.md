@@ -1,0 +1,33 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e5]
+      - navigation [ref=e58]
+    - navigation [ref=e96]:
+      - generic [ref=e99] [cursor=pointer]
+      - generic [ref=e112] [cursor=pointer]
+      - generic [ref=e121] [cursor=pointer]
+      - generic [ref=e127] [cursor=pointer]
+    - list [ref=e132]:
+      - button "Close menu" [ref=e133] [cursor=pointer]
+      - list [ref=e137]
+      - list [ref=e145]
+      - list [ref=e159]
+      - list [ref=e170]
+      - list [ref=e209]
+      - list [ref=e219]
+  - generic [ref=e240]:
+    - img [ref=e241]
+    - generic [ref=e257]:
+      - heading "Get Our Mac Browser" [level=3] [ref=e258]
+      - paragraph [ref=e259]: Protect your data as you search and browse.
+    - link "Download" [ref=e260] [cursor=pointer]:
+      - /url: https://duckduckgo.com/mac?origin=funnel_browser_searchresults__footercard
+      - img [ref=e261]
+      - text: Download
+  - generic [ref=e265]:
+    - generic [ref=e266]: Unfortunately, bots use DuckDuckGo too.
+    - generic [ref=e267]: Please complete the following challenge to confirm this search was made by a human.
+    - generic [ref=e268]: "Select all squares containing a duck:"
+    - button "Submit" [ref=e290] [cursor=pointer]
+  - button "Share Feedback" [ref=e294] [cursor=pointer]
