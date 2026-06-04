@@ -192,30 +192,3 @@ export class MinimaxProvider implements LLMProvider {
     return { toolCalls, raw: message };
   }
 }
-
-// ---------------------------------------------------------------------------
-// Provider factory
-// ---------------------------------------------------------------------------
-
-/**
- * Create the best available LLM provider from environment variables.
- * Priority: MINIMAX_API_KEY (preferred) > ANTHROPIC_API_KEY
- */
-export function createProvider(): LLMProvider {
-  const minimaxKey = process.env.MINIMAX_API_KEY;
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-
-  if (minimaxKey) {
-    console.log("[LLMAgent] Using Minimax provider");
-    return new MinimaxProvider(minimaxKey);
-  }
-
-  if (anthropicKey) {
-    console.log("[LLMAgent] Using Anthropic provider");
-    return new AnthropicProvider(anthropicKey);
-  }
-
-  throw new Error(
-    "Either MINIMAX_API_KEY or ANTHROPIC_API_KEY environment variable is required",
-  );
-}

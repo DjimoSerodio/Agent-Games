@@ -18,7 +18,7 @@ import { GameConfig, ArenaEvent } from "../../core/types.js";
 import { ComedyEngine } from "./comedy-engine.js";
 import { TrustGraph } from "../../trust/trust-graph.js";
 import { LLMAgent } from "../../agents/llm-agent.js";
-import { createProvider } from "../../agents/providers.js";
+import { createProviderFromEnv } from "../../harness/llm-runtime.js";
 import type { GameAgent } from "../../core/types.js";
 
 // ============================================================
@@ -61,7 +61,7 @@ async function runSimulation() {
   console.log();
 
   // Detect provider
-  const provider = createProvider();
+  const provider = createProviderFromEnv();
   console.log(`  Provider: ${provider.constructor.name}`);
   console.log();
 
