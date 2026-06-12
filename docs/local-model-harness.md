@@ -7,8 +7,9 @@ The local harness is committed at [`scripts/run-model-harness.ts`](../scripts/ru
 - End-to-end testing of Coordination Games without the browser.
 - Reproducing model-agent negotiation, private messages, relay wakeups, and turn actions against a local Worker server.
 - Verifying that trust cards and trust evidence publishing are produced from real game progress.
+- Running repeatable internal research experiments, such as model/persona A/B tests or with/without trust-plugin comparisons.
 
-This harness is demo-specific today: it imports this repo's API helpers, assumes Coordination Games lobby/session endpoints, and includes Tragedy of the Commons prompt/action schemas. It should stay here unless it becomes a reusable cross-repo testing tool.
+This harness is demo-specific today: it imports this repo's API helpers, assumes Coordination Games lobby/session endpoints, and includes Tragedy of the Commons prompt/action schemas. It is a lab bench for hardening games and collecting results; it should not become the mandatory future interface for outside agents or teams.
 
 ## Providers
 
@@ -26,6 +27,9 @@ PROVIDER=scripted
 MODEL=MiniMax-M2.7-highspeed
 HARNESS_ROUNDS=12
 HARNESS_COMMUNICATION_SWEEPS=1
+HARNESS_MODEL_TIMEOUT_MS=90000
+HARNESS_MODEL_RETRIES=1
+HARNESS_RESULTS_DIR=runs/model-harness
 OPENAI_BASE_URL=https://api.minimax.io/v1
 MINIMAX_API_KEY=<export-in-your-shell-only>
 ```
@@ -57,6 +61,23 @@ npm run harness:model
 ```
 
 The harness now prints provider, bot, round, relay cursor, sweep, HTTP status, invalid JSON previews, and stack traces when a model call or relay publish fails. That is intentionally verbose: a failed autonomous run should identify the exact bot wakeup that broke.
+
+## Run artifacts
+
+Each run writes non-secret artifacts under `runs/model-harness/<run-id>/` unless
+`HARNESS_ARTIFACTS=0` is set:
+
+- `run.config.json` - resolved run settings without API keys or bearer tokens.
+- `games.jsonl` - lobby/game lifecycle events.
+- `turns.jsonl` - model decisions, submitted actions, and fallback passes.
+- `errors.jsonl` - provider/action failures with context.
+- `summary.json` - final URLs and message counts.
+- `costs.json` - observed token usage plus optional estimated USD cost.
+
+Set `HARNESS_PROMPT_USD_PER_1M`, `HARNESS_COMPLETION_USD_PER_1M`, and
+`HARNESS_MAX_COST_USD` to make long runs stop when the estimated budget is
+exceeded. Without rates, cost fields stay at zero while token counts still record
+when the provider returns OpenAI-style `usage` data.
 
 ## Lighthouse/IPFS publishing
 
