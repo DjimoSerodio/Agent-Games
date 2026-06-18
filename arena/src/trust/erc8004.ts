@@ -426,6 +426,7 @@ export class ERC8004Client {
 
 import { AgentId } from "../core/types.js";
 import { TrustGraph } from "./trust-graph.js";
+import { createAgentIdentity, serializeAgentURIv0, type AgentHarnessKind } from "../core/agent-uri.js";
 
 export interface ERC8004Config {
   providerUrl: string;
@@ -453,10 +454,20 @@ export class ERC8004TrustIntegration {
 
   async registerAgentForGame(agentId: AgentId, registration: AgentRegistration): Promise<number> {
     try {
-      const agentURI = JSON.stringify({
-        type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
-        ...registration
+      const harnessKind: AgentHarnessKind = registration.services?.some((service) => service.endpoint.includes("mcp"))
+        ? "mcp"
+        : "platform-bot";
+      const identity = createAgentIdentity({
+        id: agentId,
+        name: registration.name,
+        harness: {
+          kind: harnessKind,
+          endpoint: registration.services?.[0]?.endpoint,
+          capabilities: registration.services?.flatMap((service) => service.skills ?? []),
+          operator: "platform",
+        },
       });
+      const agentURI = serializeAgentURIv0(identity);
 
       const erc8004AgentId = await this.erc8004.registerAgent(agentURI);
       this.agentIds.set(agentId, erc8004AgentId);

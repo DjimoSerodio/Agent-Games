@@ -18,6 +18,7 @@ import {
   ResourceType,
   VertexStructure,
 } from "../games/nexus/types.js";
+import { createAgentIdentity } from "../core/agent-uri.js";
 
 type MessageChannel = "public" | "private" | "broadcast" | "diary";
 
@@ -56,13 +57,15 @@ export class MCPAgentAdapter implements GameAgent {
 
   constructor(id: AgentId, name?: string, private readonly waitTimeoutMs = 30_000) {
     this.id = id;
-    this.identity = {
+    this.identity = createAgentIdentity({
       id,
       name: name || `MCP_${id.slice(0, 6)}`,
-      address: `0x${id.replace(/-/g, "").slice(0, 40).padEnd(40, "0")}`,
-      skillsHash: "",
-      registeredAt: Date.now(),
-    };
+      harness: {
+        kind: "mcp",
+        capabilities: ["mcp-tools", "negotiation", "actions"],
+        operator: "local",
+      },
+    });
   }
 
   async initialize(config: GameConfig, state: unknown, identity: AgentIdentity): Promise<void> {
@@ -116,6 +119,10 @@ export class MCPAgentAdapter implements GameAgent {
 
   getEcosystems() {
     return this.currentState?.ecosystemStates ?? [];
+  }
+
+  getIdentityProfile(): AgentIdentity {
+    return this.identity;
   }
 
   getVisibleTrustScores() {

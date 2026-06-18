@@ -82,6 +82,9 @@ export interface AgentIdentity {
   agentId: string;
   walletAddress: string;
   name?: string;
+  agentURI?: string;
+  harnessKind?: string;
+  chainAgentId?: number;
   mcpEndpoint?: string;
   capabilities?: string[];
   registeredAt?: number;

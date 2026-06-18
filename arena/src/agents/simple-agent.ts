@@ -23,6 +23,7 @@ import {
   ResourceType,
   RESOURCE_NAMES,
 } from "../games/nexus/types.js";
+import { createAgentIdentity } from "../core/agent-uri.js";
 
 export type AgentStrategy =
   | "cooperator"   // Always cooperates, trades freely, contributes to crises
@@ -66,13 +67,15 @@ export class SimpleAgent implements GameAgent {
   constructor(id: AgentId, strategy: AgentStrategy, name?: string) {
     this.id = id;
     this.strategy = strategy;
-    this.identity = {
+    this.identity = createAgentIdentity({
       id,
       name: name || `Agent_${id.slice(0, 6)}_${strategy}`,
-      address: `0x${id.replace(/-/g, "").slice(0, 40)}`,
-      skillsHash: "",
-      registeredAt: Date.now(),
-    };
+      harness: {
+        kind: "simple",
+        capabilities: ["negotiation", "actions", "reflection"],
+        operator: "local",
+      },
+    });
     this.memory = {
       lastBehavior: {},
       allies: new Set(),
