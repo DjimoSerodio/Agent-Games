@@ -37,8 +37,8 @@ When we migrated from Express (`packages/server`) to Cloudflare Workers (`packag
 - `GET /api/player/leaderboard` — CLI calls wrong path (exists at `/api/leaderboard`)
 
 **Body shape mismatch (route exists, wrong format):**
-- `POST /api/player/tool` — CLI sends `{ pluginId, tool, args }`, server expects `{ relay: { ... } }`
-- `POST /api/player/lobby/tool` — same
+- Resolved for unified gameplay tools: `POST /api/player/tool` uses `{ toolName, args }`, and clients should discover live tool names from `/api/player/state` `currentPhase.tools`.
+- Legacy notes about `{ pluginId, tool, args }` or `{ relay: ... }` refer to pre-unified relay/plugin calls and should not be used for current agents.
 
 **Response shape mismatch:**
 - `GET /api/lobbies` — CLI expects `agents[]` + `externalSlots[]`, server returns `teamSize` + `createdAt`
@@ -112,8 +112,8 @@ D1 migration: `ALTER TABLE players ADD COLUMN chain_agent_id INTEGER UNIQUE;`
 
 **Goal:** Fix everything that's broken for reasons unrelated to on-chain. No chain work. Gets the CLI and MCP tools functional for the current D1-only mode.
 
-1. Fix `POST /api/player/tool` — change CLI to send the `{ relay: { ... } }` format the server expects (server defines the API; CLI conforms)
-2. Fix `POST /api/player/lobby/tool` — same
+1. Keep `POST /api/player/tool` aligned on the unified `{ toolName, args }` format and live `/api/player/state` `currentPhase.tools` discovery.
+2. Keep lobby/player tool calls aligned with the same unified dispatcher contract where applicable.
 3. Fix `GET /api/lobbies` response — query LobbyDO for agent membership, include in response
 4. Fix `GET /api/games/:id/result` field names — add `configHash`, alias `actionsRoot`→`movesRoot`, `actionCount`→`turnCount`
 5. Add `GET /api/player/leaderboard` — alias to existing `/api/leaderboard` handler

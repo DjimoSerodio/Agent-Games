@@ -1,6 +1,6 @@
 # Local model harness
 
-The local harness is committed at [`scripts/run-model-harness.ts`](../scripts/run-model-harness.ts). It creates throwaway wallet-backed bots, starts or joins a local lobby through the normal HTTP API, polls each bot's visible state, asks a model provider for chat/DM/action decisions, publishes reasoning evidence through the relay plugin, and submits legal game actions.
+The local harness lives in the standalone `coordination-games-model-harness` repo. [`scripts/run-model-harness.ts`](../scripts/run-model-harness.ts) is a compatibility shim that forwards `npm run harness:model` from this game repo to that standalone harness. The harness creates throwaway wallet-backed bots, starts or joins a local lobby through the normal HTTP API, polls each bot's visible state, asks a model provider for chat/DM/action decisions, publishes reasoning evidence through the relay plugin, and submits runtime-advertised game actions.
 
 ## What it is for
 
@@ -9,7 +9,7 @@ The local harness is committed at [`scripts/run-model-harness.ts`](../scripts/ru
 - Verifying that trust cards and trust evidence publishing are produced from real game progress.
 - Running repeatable internal research experiments, such as model/persona A/B tests or with/without trust-plugin comparisons.
 
-This harness is demo-specific today: it imports this repo's API helpers, assumes Coordination Games lobby/session endpoints, and includes Tragedy of the Commons prompt/action schemas. It is a lab bench for hardening games and collecting results; it should not become the mandatory future interface for outside agents or teams.
+The harness is game-agnostic at the action boundary: it reads live `currentPhase.tools` from `/api/player/state`, prompts models with those tool schemas, submits only advertised tool names, and feeds runtime validation errors back to the model once for correction. It is a lab bench for hardening games and collecting results; it should not become the mandatory future interface for outside agents or teams.
 
 ## Providers
 
@@ -69,7 +69,7 @@ Each run writes non-secret artifacts under `runs/model-harness/<run-id>/` unless
 
 - `run.config.json` - resolved run settings without API keys or bearer tokens.
 - `games.jsonl` - lobby/game lifecycle events.
-- `turns.jsonl` - model decisions, submitted actions, and fallback passes.
+- `turns.jsonl` - model decisions, submitted actions, and correction attempts.
 - `errors.jsonl` - provider/action failures with context.
 - `summary.json` - final URLs and message counts.
 - `costs.json` - observed token usage plus optional estimated USD cost.
