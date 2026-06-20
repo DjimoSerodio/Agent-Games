@@ -20,18 +20,3 @@ packages/contracts/typechain-types/
 core
 runs/
 
-
-# Sisyphus cleanup-task-3 rescue excludes
-.beads/
-.claude/
-.playwright-mcp/
-.sisyphus/
-.gitnexus/
-deploy/
-docs/planning/
-trash/
-*.png
-*.webm
-*.tar
-*.tgz
-*.zip
